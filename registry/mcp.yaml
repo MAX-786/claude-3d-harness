@@ -1,0 +1,100 @@
+# The single execution layer. Exactly one Blender MCP server is configured at a
+# time, always under the name below, so every tool is mcp__blender__<tool>.
+# `.mcp.json` is generated from this file:
+#     uv run scripts/harness.py mcp-config --provider <name> --write
+
+server_name: blender
+default_provider: newo-ether
+
+providers:
+  newo-ether:
+    repo: https://github.com/newo-ether/blender-mcp
+    upstream: newo                      # key in registry/upstreams.yaml
+    release: v1.18.0
+    blender_min: "4.2"
+    launch:
+      command: uvx
+      args:
+        - --from
+        - blender-mcp @ https://github.com/newo-ether/blender-mcp/releases/download/v1.18.0/blender_mcp-1.18.0-py3-none-any.whl
+        - blender-mcp
+      env:
+        DISABLE_TELEMETRY: "true"
+        # The `:-.` default keeps .mcp.json parseable when the variable is unset.
+        BLENDER_MCP_WORKSPACE: ${CLAUDE_PROJECT_DIR:-.}/output
+    blender_extension:
+      url: https://github.com/newo-ether/blender-mcp/releases/download/v1.18.0/blender_mcp-1.18.0.zip
+      sha256: 9859cc4a80a6f244fa364e8f456bc2d477d71a0591322ff42a6b208d26ee3b36
+    wheel_sha256: 6fa475dc56ca75b42aa20dc26717ade830526ba9742ebaa33db9fe6480af7bdc
+    notes: >-
+      Fork of the original server: keeps its tool names and adds structured
+      Geometry/Shader/Compositor node tools, Blender documentation search and
+      multi-instance claim/release. If you also run the fork's own installer,
+      pass -SkipClaudeCodeRegistration, -SkipCodexRegistration, -SkipClaudeDesktop
+      and -SkipSkillInstallation, or a second server named blender_mcp appears.
+
+  ahujasid:
+    repo: https://github.com/ahujasid/mcp-for-blender   # formerly ahujasid/blender-mcp
+    blender_min: "3.0"
+    launch:
+      command: uvx
+      args: [blender-mcp==2.0.0]
+      env:
+        DISABLE_TELEMETRY: "true"
+    blender_addon: https://github.com/ahujasid/mcp-for-blender/blob/main/addon.py
+    notes: >-
+      The server every skill upstream was validated against. Fallback when the
+      fork misbehaves. Install addon.py by hand (Preferences > Add-ons > Install
+      from Disk), then press "Connect" in the BlenderMCP sidebar tab.
+
+# Tools the skills rely on and both providers expose.
+canonical_tools:
+  - execute_blender_code
+  - get_scene_info
+  - get_object_info
+  - get_viewport_screenshot
+  - get_polyhaven_status
+  - get_polyhaven_categories
+  - search_polyhaven_assets
+  - download_polyhaven_asset
+  - set_texture
+  - get_sketchfab_status
+  - search_sketchfab_models
+  - download_sketchfab_model
+  - get_hyper3d_status
+  - generate_hyper3d_model_via_text
+  - generate_hyper3d_model_via_images
+  - poll_rodin_job_status
+  - import_generated_asset
+
+# Upstream skills were written against different MCP servers. A dialect maps the
+# tool names a skill mentions to the canonical tools of the one server we run.
+dialects:
+  ahujasid:
+    summary: Written for ahujasid/blender-mcp registered as `blender`. Tool names already match.
+    prefix: mcp__blender__
+    map: {}
+
+  blender-lab:
+    summary: Written for a connector registered as `Blender` (capital B) with a different tool surface.
+    prefix: mcp__Blender__
+    map:
+      execute_blender_code: execute_blender_code
+      get_objects_summary: get_scene_info
+      get_object_detail_summary: get_object_info
+      get_screenshot_of_window_as_image: get_viewport_screenshot
+      get_screenshot_of_area_as_image: get_viewport_screenshot
+      render_viewport_to_path: >-
+        execute_blender_code running bpy.ops.render.opengl(write_still=True)
+        with scene.render.filepath set to an absolute path under output/<job>/,
+        then Read the image
+      render_thumbnail_to_path: >-
+        execute_blender_code running a low-resolution bpy.ops.render.render(write_still=True)
+        to an absolute path under output/<job>/, then Read the image
+      jump_to_view: >-
+        execute_blender_code setting the 3D viewport's region_3d view
+        (view_perspective, view_rotation, view_distance) or bpy.ops.view3d.view_axis
+        inside a temp_override for the VIEW_3D area
+    also: >-
+      These skills mention an HTTP fallback on localhost:7234. That bridge is
+      never installed under the harness: ignore every port-7234 instruction.

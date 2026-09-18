@@ -1,0 +1,247 @@
+# Catalog of every SKILL.md shipped by the upstreams (plus a few reference docs).
+# `harness.py verify` fails if an entry points at a missing file and warns when
+# an upstream ships a SKILL.md that is not listed here (drift after an update).
+#
+# id      <upstream key>/<skill directory>. The file is
+#         <upstream path>/<skills_root>/<directory>/SKILL.md unless `path`
+#         (relative to the upstream root) overrides it.
+# status  active    routable through registry/capabilities.yaml
+#         chained   loaded by another upstream skill (`via`), never routed directly
+#         excluded  never loaded under the harness (`reason` says why)
+# kind    skill (default) | reference (a supporting doc, not a SKILL.md)
+# requires
+#   mcp      MCP providers that expose the tools this skill needs
+#   env      environment variables the user must already have set
+#   bins     executables that must be on PATH
+#   python   true when bundled scripts need the upstream's python_deps
+# transport  mcp (default) | direct-socket (bundled scripts talk to the Blender
+#            addon socket on port 9876 themselves, bypassing the MCP server)
+# notes   adaptation notes printed by `harness.py resolve` when the skill is selected
+
+skills:
+
+  # ---------------------------------------------------------------- newo (MCP)
+  newo/blender-mcp:
+    status: active
+    summary: How to drive the primary MCP server - instance claim/release, structured node tools, safe verification.
+    requires: {mcp: [newo-ether]}
+    notes: >-
+      Its "execute_blender_code is a fallback" rule governs node-graph work.
+      Mesh, light, camera, render and animation work has no structured tool, so
+      the cc recipes run through execute_blender_code as that skill's
+      capability-gap case. Always release the Blender instance before the final reply.
+  newo/asset-workflows:
+    status: active
+    kind: reference
+    path: skills/blender-mcp/references/asset-workflows.md
+    summary: Poly Haven, Sketchfab, Hyper3D and Hunyuan3D asset tools of the primary MCP.
+    requires: {mcp: [newo-ether]}
+  newo/render-workflows:
+    status: active
+    kind: reference
+    path: skills/blender-mcp/references/render-workflows.md
+    summary: Render configuration and viewport verification through the primary MCP.
+    requires: {mcp: [newo-ether]}
+
+  # ------------------------------------------------------- cc: orchestration
+  cc/text-to-blender:
+    status: active
+    summary: Execution conventions - fresh namespace per call, GEO-/MAT-/LGT- naming, world reset, dimension lookup, visual validation checkpoint.
+    notes: >-
+      Upstream orchestrator. Under the harness its routing table is advisory:
+      the load plan decides which skills are read. Keep its code-execution
+      rules, naming conventions and visual validation checkpoint.
+  cc/blender-pro-workflow:
+    status: active
+    summary: Scene assembly order (block-out, camera, light, forms, materials, detail, render), critique protocol, recovery patterns.
+  cc/blender-skill-harmonizer:
+    status: active
+    summary: Precedence, handoff artifacts and conflict rules when several skills share one job.
+  cc/quality-refinement-autoloop:
+    status: active
+    summary: Diagnose a sub-par result, pick the failing dimension, repair, re-validate.
+    notes: >-
+      This skill can propose patching skill files, versioning and release
+      commits. upstream/ is read-only here: record lessons in notes/lessons.md
+      and skip its docs/version/release steps.
+
+  # ------------------------------------------------------ cc: core production
+  cc/blender-modeling:
+    status: active
+    summary: Primitives, hard-surface modeling, modifier stacks, bmesh edits.
+  cc/blender-materials:
+    status: active
+    summary: Principled BSDF PBR recipes - metal, glass, plastic, fabric, skin, procedural patterns.
+  cc/blender-lighting:
+    status: active
+    summary: Three-point, HDRI, studio, cinematic and subject-class lighting profiles.
+  cc/blender-cameras:
+    status: active
+    summary: Focal length, depth of field, composition, tracking, animated cameras.
+  cc/blender-rendering:
+    status: active
+    summary: Cycles/EEVEE settings, sampling, denoising, colour management, still and animation output.
+  cc/blender-animation:
+    status: active
+    summary: Keyframes, F-curves, easing, shape keys, drivers, NLA.
+  cc/blender-export:
+    status: active
+    summary: glTF/GLB, FBX, OBJ, USD, STL export settings and validation.
+  cc/blender-uv-texturing:
+    status: active
+    summary: UV unwrap, projection, decals, baking, lightmaps, glTF-ready textures.
+  cc/animation-quality-gate:
+    status: active
+    summary: Contact-sheet QA for animation - flicker, framing, silhouette stability.
+    requires: {python: true}
+
+  # ----------------------------------------- cc: reference-locked reconstruction
+  cc/reference-to-3d:
+    status: active
+    summary: Entry point for source-locked reconstruction from reference sheets, orthographic views or texture packs.
+    requires: {python: true}
+    notes: >-
+      It chain-loads the cc reconstruction stack by bare name; resolve those
+      names inside upstream/cc-blender-skill. Load cc/blender-skill-harmonizer
+      first: it is the hub that sequences the stack.
+  cc/wireframe-to-3d:
+    status: active
+    summary: 2D orthographic wireframe drawings to a 3D model exported as glTF/GLB.
+    requires: {python: true}
+  cc/reference-look-calibration:
+    status: active
+    summary: Match materials, light, crop and colour to a supplied reference image with measurable statistics.
+    requires: {python: true}
+  cc/mascot-logo-reconstruction:
+    status: active
+    summary: Fail-gated 1:1 reconstruction of mascots, logos and flat brand characters.
+  # `via` names the upstream skill that refers to each of these by bare name
+  # (checked against the SKILL.md cross-references at the cataloged commit).
+  cc/reference-analysis-validator: {status: chained, via: cc/reference-to-3d, summary: "Source manifests, masks, IoU/SSIM overlay validation.", requires: {python: true}}
+  cc/contour-to-mesh:              {status: chained, via: cc/reference-to-3d, summary: "Mesh surfaces built from extracted 2D contours.", requires: {python: true}}
+  cc/orthographic-registration:    {status: chained, via: cc/reference-to-3d, summary: "Front/side/back/top views in one coordinate contract.", requires: {python: true}}
+  cc/atlas-uv-fitting:             {status: chained, via: cc/reference-to-3d, summary: "Map source parts to atlas regions.", requires: {python: true}}
+  cc/multiview-fit-loop:           {status: chained, via: cc/blender-skill-harmonizer, summary: "Render, compare, adjust until all views fit.", requires: {python: true}}
+  cc/source-part-segmentation:     {status: chained, via: cc/blender-skill-harmonizer, summary: "Per-part masks from overlapping source art.", requires: {python: true}}
+  cc/multiview-constraint-solver:  {status: chained, via: cc/blender-skill-harmonizer, summary: "Decide whether contradictory views can share one rigid model."}
+  cc/fit-repair-optimizer:         {status: chained, via: cc/blender-skill-harmonizer, summary: "Turn fit reports into an ordered repair queue."}
+  cc/landmark-fit-repair:          {status: chained, via: cc/blender-skill-harmonizer, summary: "Named-landmark validation and repair."}
+  cc/texture-driven-mesh-fitting:  {status: chained, via: cc/blender-skill-harmonizer, summary: "Reshape mesh boundaries to texture contours."}
+  cc/texture-state-animation:      {status: chained, via: cc/blender-skill-harmonizer, summary: "Registered texture-state transitions without popping.", requires: {python: true}}
+  cc/orbital-hud-motion:           {status: chained, via: cc/blender-skill-harmonizer, summary: "Source-derived orbital HUD and aura motion."}
+  cc/closed-surface-uv-coverage:   {status: chained, via: cc/blender-uv-texturing, summary: "Front/back/side texture coverage audit for closed assets."}
+  cc/wireframe-to-3d-legacy:
+    status: excluded
+    path: skill/wireframe-to-3d/SKILL.md
+    summary: First single-skill prototype of wireframe-to-3d.
+    reason: Superseded by plugin/skills/wireframe-to-3d; same skill name, older content.
+
+  # ------------------------------------------------------ cc: knowledge (docs)
+  cc/knowledge-compositing:
+    status: active
+    kind: reference
+    path: knowledge/12-compositing/00-overview.md
+    summary: Compositor research notes - colour grade, glare, vignette, passes.
+
+  # ------------------------------------------------------------------- gaius
+  gaius/blender-arch:
+    status: active
+    summary: Architecture, furniture, vehicles and products with professional bevel/SubSurf/Boolean technique and a visual loop.
+  gaius/blender-coordinator:
+    status: active
+    summary: Part-by-part build planning - spec sheet analysis, technique per part, dependency order.
+  gaius/blender-research:
+    status: active
+    summary: Decompose a subject into parts and collect real dimensions, colours and materials before modeling.
+  gaius/blender-procedural:
+    status: active
+    summary: Parallel transport, lofted profiles, generalized cylinders, helices, differential growth.
+  gaius/blender-geonodes:
+    status: active
+    summary: Geometry Nodes trees via Python - scatter, curve-to-mesh, noise deformation, parametric inputs.
+    notes: With the newo-ether MCP active, build and edit node trees through its structured node tools and use this skill for the graph design.
+  gaius/blender-sculpt:
+    status: active
+    summary: Procedural sculpting - KDTree brushes, falloffs, voxel/quad remesh, multires, displacement.
+  gaius/blender-space:
+    status: active
+    summary: Coordinate systems, transform math, bounding boxes, placement and spatial debugging.
+  gaius/blender-rig:
+    status: active
+    summary: Armatures, FK/IK, algorithmic weights, shape-key drivers, socket system.
+  gaius/blender-physics:
+    status: active
+    summary: Rigid body, soft body, cloth, force fields, particles, bake workflow.
+  gaius/blender-texture:
+    status: active
+    summary: Procedural Principled materials, UV unwrap, AO/normal/diffuse baking, texture painting.
+  gaius/blender-lighting:
+    status: active
+    summary: Deep lighting reference (portrait patterns, product setups); has no frontmatter description upstream.
+  gaius/root-duplicate:
+    status: excluded
+    path: skill/SKILL.md
+    summary: Byte-identical copy of blender-arch at the skills root.
+    reason: Duplicate of gaius/blender-arch.
+
+  # ---------------------------------------------------------------------- kb
+  kb/turntable:         {status: active, summary: "360-degree product orbit.", requires: {bins: [ffmpeg]}}
+  kb/perfect-loop:      {status: active, summary: "Seamless 360 loop whose first and last frames match.", requires: {bins: [ffmpeg]}}
+  kb/slow-zoom:         {status: active, summary: "Slow push-in toward a hero detail.", requires: {bins: [ffmpeg]}}
+  kb/dolly-rotate:      {status: active, summary: "Forward dolly combined with rotation around the subject.", requires: {bins: [ffmpeg]}}
+  kb/crane-shot:        {status: active, summary: "Low-to-high rising reveal.", requires: {bins: [ffmpeg]}}
+  kb/dynamic-full-loop: {status: active, summary: "Speed-ramped loop showing every side including top and bottom.", requires: {bins: [ffmpeg]}}
+  kb/polyhaven-studio-setup:
+    status: active
+    transport: direct-socket
+    summary: HDRI-lit product studio with optional PBR ground; curated studio HDRI list.
+    requires: {bins: [node]}
+  kb/polyhaven-scene-builder:
+    status: active
+    transport: direct-socket
+    summary: Product scene from Poly Haven HDRI, textured ground or pedestal, optional props.
+    requires: {bins: [node]}
+  kb/polyhaven-texture-apply:
+    status: active
+    transport: direct-socket
+    summary: Apply a Poly Haven PBR texture set to an object.
+    requires: {bins: [node]}
+  kb/polyhaven-material-swap:
+    status: active
+    transport: direct-socket
+    summary: Render one product across several Poly Haven materials.
+    requires: {bins: [node]}
+  kb/polyhaven-hdri-showcase:
+    status: active
+    transport: direct-socket
+    summary: Render one product across several HDRIs into a comparison grid.
+    requires: {bins: [node]}
+  kb/product-polish:
+    status: active
+    transport: direct-socket
+    summary: Import a GLB/GLTF and apply a glossy product finish with studio lighting.
+    requires: {bins: [node]}
+  kb/threejs-export:
+    status: active
+    transport: direct-socket
+    summary: Export GLB plus a ready-to-open Three.js viewer page.
+    requires: {bins: [node]}
+  kb/image-to-3d:
+    status: active
+    summary: One photo to a textured 3D model through the Meshy API, imported into Blender.
+    requires: {env: [MESHY_API_KEY]}
+    notes: Paid third-party service. Use only when the user asked for it and MESHY_API_KEY is already set in their environment.
+  kb/multi-image-to-3d:
+    status: active
+    summary: One to four photos to a higher-accuracy 3D model through the Meshy API.
+    requires: {env: [MESHY_API_KEY]}
+    notes: Paid third-party service. Use only when the user asked for it and MESHY_API_KEY is already set in their environment.
+  kb/blender-toolkit:
+    status: excluded
+    summary: Copy of Dev-GOM blender-toolkit (WebSocket addon, Mixamo retargeting).
+    reason: Needs its own Blender addon and WebSocket bridge, which would be a second execution layer next to the single MCP server.
+
+  # ---------------------------------------------------------------------- jo
+  jo/blender:
+    status: active
+    summary: Parametric design workflow - analyze reference, build simple, verify from several angles, iterate; surface pattern library.

@@ -1,0 +1,29 @@
+name: cinematic
+summary: A film-quality shot - full environment, atmosphere, graded final frame, usually camera motion.
+match:
+  - "cinematic / photorealistic / film still / 35mm / anamorphic"
+  - weather, night, neon, fog, rain on glass, god rays
+  - an environment AND a camera move in the same request
+stages:
+  - {id: research,    capability: reference-research}
+  - {id: plan,        capability: pipeline-planning}
+  - {id: harmonize,   capability: harmonization}
+  - {id: layout,      capability: spatial-layout}
+  - {id: camera-lock, capability: cameras,             note: "Choose lens and framing on the block-out; build only what the camera sees."}
+  - {id: shell,       capability: architecture}
+  - {id: props,       capability: modeling}
+  - {id: assets,      capability: asset-sourcing}
+  - {id: procedural,  capability: procedural-modeling, optional: true, when: "swept, grown or math-defined forms"}
+  - {id: scatter,     capability: geometry-nodes,      optional: true, when: "rain, vegetation, debris, instanced detail"}
+  - {id: materials,   capability: materials}
+  - {id: textures,    capability: pbr-textures,        optional: true, when: "large surfaces need photographic PBR sets"}
+  - {id: uv,          capability: uv-texturing,        optional: true, when: "image textures stretch or tile visibly"}
+  - {id: lighting,    capability: lighting,            note: "Includes atmosphere - volumetrics, practicals, motivated sources."}
+  - {id: look,        capability: look-calibration,    optional: true, when: "the user supplies a reference frame to match"}
+  - {id: camera-move, capability: camera-animation,    optional: true, when: "the camera moves through or toward the scene"}
+  - {id: motion,      capability: animation,           optional: true, when: "anything other than the camera moves"}
+  - {id: sim,         capability: physics,             optional: true, when: "cloth, particles or rigid bodies are part of the shot"}
+  - {id: render,      capability: rendering}
+  - {id: grade,       capability: compositing}
+  - {id: motion-qa,   capability: animation-qa,        optional: true, when: "a frame range was rendered"}
+  - {id: refine,      capability: refinement}

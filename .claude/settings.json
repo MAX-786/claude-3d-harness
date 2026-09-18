@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run scripts/harness.py:*)",
+      "mcp__blender__get_*",
+      "mcp__blender__list_*",
+      "mcp__blender__search_*",
+      "mcp__blender__inspect_*",
+      "mcp__blender__audit_*",
+      "mcp__blender__query_*",
+      "mcp__blender__validate_*",
+      "mcp__blender__claim_blender_instance",
+      "mcp__blender__release_blender_instance"
+    ],
+    "deny": [
+      "Edit(/upstream/**)",
+      "Write(/upstream/**)",
+      "NotebookEdit(/upstream/**)"
+    ]
+  }
+}

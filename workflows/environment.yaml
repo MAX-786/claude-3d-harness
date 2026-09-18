@@ -1,0 +1,24 @@
+name: environment
+summary: A place - interior or exterior with many objects, believable materials and light.
+match:
+  - "bedroom / kitchen / street / village / forest clearing / office"
+  - several asset types in one scene, a still image as deliverable
+stages:
+  - {id: research,  capability: reference-research}
+  - {id: plan,      capability: pipeline-planning}
+  - {id: harmonize, capability: harmonization,  min_profile: standard}
+  - {id: layout,    capability: spatial-layout, note: "Block-out with correct scale and placement before any detail."}
+  - {id: shell,     capability: architecture,   note: "Walls, floors, openings, built-in structure, large furniture."}
+  - {id: props,     capability: modeling}
+  - {id: assets,    capability: asset-sourcing, min_profile: standard, note: "Prefer free CC0 assets over hand-modeling generic props, plants, rocks."}
+  - {id: scatter,   capability: geometry-nodes, min_profile: cinematic, optional: true, when: "vegetation, debris, rain, crowds of instances"}
+  - {id: materials, capability: materials}
+  - {id: textures,  capability: pbr-textures,   min_profile: standard, optional: true, when: "large surfaces need photographic PBR sets (floors, walls, ground)"}
+  - {id: uv,        capability: uv-texturing,   min_profile: standard, optional: true, when: "image textures stretch or tile visibly"}
+  - {id: lighting,  capability: lighting}
+  - {id: camera,    capability: cameras}
+  - {id: render,    capability: rendering}
+  - {id: refine,    capability: refinement,     min_profile: standard}
+alternatives:
+  - {capability: procedural-modeling, when: "terrain, roots, cables or other swept and grown forms"}
+  - {capability: physics,             when: "cloth drape, scattered rigid bodies, settled debris"}

@@ -1,0 +1,20 @@
+name: animation
+summary: Motion is the deliverable - object animation, camera moves, loops.
+match:
+  - "animate / make it move / spin / loop / fly-through / reveal"
+  - video output (mp4, mov, webm, frame sequence)
+stages:
+  - {id: plan,        capability: pipeline-planning, min_profile: standard}
+  - {id: model,       capability: modeling,          optional: true, when: "the subject does not exist yet"}
+  - {id: materials,   capability: materials,         optional: true, when: "the subject has no materials yet"}
+  - {id: lighting,    capability: lighting}
+  - {id: camera,      capability: cameras}
+  - {id: motion,      capability: animation,         note: "Object, light and property motion. Use camera-animation instead for a named camera move."}
+  - {id: camera-move, capability: camera-animation,  optional: true, when: "the motion is a camera move around or toward a subject"}
+  - {id: render,      capability: rendering,         note: "Still first, then a sparse contact sheet, then the full frame range."}
+  - {id: motion-qa,   capability: animation-qa,      min_profile: standard}
+  - {id: refine,      capability: refinement,        min_profile: standard, optional: true, when: "a checkpoint fails twice on the same defect"}
+  - {id: export,      capability: export,            optional: true, when: "the animation must leave Blender as glTF/FBX/USD"}
+alternatives:
+  - {capability: rigging, when: "a character or mechanism needs bones, IK or drivers"}
+  - {capability: physics, when: "motion should come from simulation (falling, cloth, particles)"}

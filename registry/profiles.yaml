@@ -1,0 +1,53 @@
+# Complexity profiles. A profile decides how much of a workflow runs (stages
+# carry a min_profile) and how much iteration the job may spend.
+# Budgets are ceilings for orchestration, not render recipes: the rendering
+# skill still chooses the actual settings inside them.
+
+order: [fast, standard, cinematic]
+
+profiles:
+  fast:
+    summary: One simple object, or a small change to an existing scene.
+    signals:
+      - single object with no environment
+      - words like quick, simple, rough, block out
+      - edit to something already in the scene (recolour, move, resize, relight one lamp)
+    always: [mcp-usage, execution-core]
+    budgets:
+      plan: three to five lines in chat, no plan file
+      checkpoints: one viewport screenshot after assembly
+      refinement_passes: 1
+      preview: viewport screenshot only
+      final: up to 1280x720, EEVEE or Cycles at 64 samples or fewer
+      asset_downloads: only if the user asked for one
+
+  standard:
+    summary: Several objects with believable materials, lighting and a composed camera.
+    signals:
+      - a room, a desk setup, a product on a set, a small diorama
+      - words like realistic, nice lighting, render it
+      - one deliverable image or one short turntable
+    always: [mcp-usage, execution-core]
+    budgets:
+      plan: output/<job>/plan.md listing stages, skills and acceptance criteria
+      checkpoints: screenshot after block-out, after lighting, after materials
+      refinement_passes: 2
+      preview: 960x540, Cycles at 32-64 samples with denoise
+      final: up to 1920x1080, Cycles at 256 samples or fewer with denoise
+      asset_downloads: Poly Haven textures and HDRIs at 1k-2k when they beat procedural
+
+  cinematic:
+    summary: A full environment or film-quality shot - many asset types, atmosphere, camera motion, high fidelity.
+    signals:
+      - exterior or interior environment with many props
+      - words like photorealistic, cinematic, 35mm, film still, hero
+      - weather, volumetrics, night scenes, reflections, wet surfaces
+      - camera movement through the scene, or a multi-shot sequence
+    always: [mcp-usage, execution-core, pipeline-planning, harmonization]
+    budgets:
+      plan: output/<job>/plan.md with shot description, references, asset list, stage gates, risks
+      checkpoints: screenshot or preview render at every stage gate
+      refinement_passes: 4
+      preview: 960x540 Cycles previews; for motion, a contact sheet of 8-12 frames before any full render
+      final: 1920x1080 or above, Cycles at 512 samples or fewer with denoise; render animation only after the still is approved
+      asset_downloads: Poly Haven models, textures and HDRIs up to 4k; Sketchfab only if the user has configured it

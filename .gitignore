@@ -1,0 +1,14 @@
+# job folders: plans, previews, renders, node-patch JSON
+output/*
+!output/.gitkeep
+
+# downloaded release assets (Blender extension zip)
+.cache/
+
+# per-user Claude Code state
+.claude/settings.local.json
+
+__pycache__/
+*.pyc
+.venv/
+*.blend1

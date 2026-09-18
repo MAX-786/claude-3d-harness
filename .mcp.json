@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "blender": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "blender-mcp @ https://github.com/newo-ether/blender-mcp/releases/download/v1.18.0/blender_mcp-1.18.0-py3-none-any.whl",
+        "blender-mcp"
+      ],
+      "env": {
+        "DISABLE_TELEMETRY": "true",
+        "BLENDER_MCP_WORKSPACE": "${CLAUDE_PROJECT_DIR:-.}/output"
+      }
+    }
+  }
+}

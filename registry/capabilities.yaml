@@ -1,0 +1,157 @@
+# Capability routing: the vocabulary workflows and the orchestrator speak.
+#
+# Each capability has exactly ONE provider (or one provider per variant), so
+# Claude never sees two competing implementations of the same thing. Fallbacks
+# are tried in order only when the provider is unavailable under the active MCP,
+# its file is missing, or it has failed twice on the same defect.
+#
+# provider / fallbacks are skill ids from registry/skills.yaml (status: active).
+
+capabilities:
+
+  # ------------------------------------------------------------------- core
+  mcp-usage:
+    summary: Rules for driving the MCP server itself (instances, structured tools, release).
+    provider: newo/blender-mcp
+  execution-core:
+    summary: Code-execution rules, naming conventions, world reset, visual validation checkpoint.
+    provider: cc/text-to-blender
+  pipeline-planning:
+    summary: Order of assembly and critique protocol for a multi-stage build.
+    provider: cc/blender-pro-workflow
+    fallbacks: [gaius/blender-coordinator, jo/blender]
+  harmonization:
+    summary: Precedence and handoff contracts when three or more domain skills share a job.
+    provider: cc/blender-skill-harmonizer
+  reference-research:
+    summary: Break the subject into parts and gather real dimensions, colours, materials.
+    provider: gaius/blender-research
+  refinement:
+    summary: Structured diagnose-and-repair loop for a result that failed QA.
+    provider: cc/quality-refinement-autoloop
+
+  # --------------------------------------------------------------- geometry
+  modeling:
+    summary: General mesh modeling of objects and props.
+    provider: cc/blender-modeling
+    fallbacks: [jo/blender, gaius/blender-arch]
+  architecture:
+    summary: Buildings, rooms, furniture, vehicles - dimensionally faithful hard-surface work.
+    provider: gaius/blender-arch
+    fallbacks: [cc/blender-modeling]
+  parametric-design:
+    summary: Repeating or organic parametric surfaces (slats, planks, lattices).
+    provider: jo/blender
+    fallbacks: [cc/blender-modeling]
+  procedural-modeling:
+    summary: Math-driven forms - lofts, helices, growth, anti-drift sweeps.
+    provider: gaius/blender-procedural
+  geometry-nodes:
+    summary: Scatter, instancing and non-destructive procedural setups.
+    provider: gaius/blender-geonodes
+  sculpting:
+    summary: Organic surface detail through procedural sculpting.
+    provider: gaius/blender-sculpt
+  spatial-layout:
+    summary: Placing many objects correctly - transforms, bounds, proximity, orientation.
+    provider: gaius/blender-space
+  asset-sourcing:
+    summary: Free online assets (Poly Haven models, textures, HDRIs; Sketchfab) through MCP tools.
+    provider: newo/asset-workflows
+    fallbacks: [kb/polyhaven-scene-builder]
+
+  # ------------------------------------------------------------ look-dev
+  materials:
+    summary: PBR materials.
+    provider: cc/blender-materials
+    fallbacks: [gaius/blender-texture]
+  uv-texturing:
+    summary: UVs, projection, baking, texture packs.
+    provider: cc/blender-uv-texturing
+    fallbacks: [gaius/blender-texture]
+  pbr-textures:
+    summary: Apply downloaded Poly Haven PBR texture sets to objects.
+    provider: kb/polyhaven-texture-apply
+    fallbacks: [newo/asset-workflows]
+  lighting:
+    summary: Scene and subject lighting.
+    provider: cc/blender-lighting
+    fallbacks: [gaius/blender-lighting]
+  studio-environment:
+    summary: HDRI-lit product studio with ground or pedestal.
+    provider: kb/polyhaven-studio-setup
+    fallbacks: [cc/blender-lighting]
+  product-finish:
+    summary: Glossy showroom finish for an imported product model.
+    provider: kb/product-polish
+    fallbacks: [cc/blender-materials]
+  look-calibration:
+    summary: Match the render to a supplied reference image.
+    provider: cc/reference-look-calibration
+  look-variants:
+    summary: Comparison renders of one subject across materials or HDRIs.
+    variants:
+      materials: {provider: kb/polyhaven-material-swap, when: "colour or finish options of one product"}
+      hdris: {provider: kb/polyhaven-hdri-showcase, when: "same product under several lighting environments"}
+    default: materials
+
+  # ------------------------------------------------------ camera and motion
+  cameras:
+    summary: Framing, lens, depth of field, composition.
+    provider: cc/blender-cameras
+  camera-animation:
+    summary: Named camera moves around a subject.
+    variants:
+      turntable: {provider: kb/turntable, when: "classic 360 product spin"}
+      perfect-loop: {provider: kb/perfect-loop, when: "spin that must loop seamlessly"}
+      slow-zoom: {provider: kb/slow-zoom, when: "slow push-in toward a detail or a window"}
+      dolly-rotate: {provider: kb/dolly-rotate, when: "forward move combined with rotation"}
+      crane-shot: {provider: kb/crane-shot, when: "low-to-high reveal"}
+      dynamic-full-loop: {provider: kb/dynamic-full-loop, when: "energetic loop with speed ramps, all sides"}
+    default: turntable
+    fallbacks: [cc/blender-cameras, cc/blender-animation]
+  animation:
+    summary: Object, light and property animation.
+    provider: cc/blender-animation
+  animation-qa:
+    summary: Contact-sheet review of rendered motion.
+    provider: cc/animation-quality-gate
+  rigging:
+    summary: Armatures, IK/FK, weights, drivers.
+    provider: gaius/blender-rig
+  physics:
+    summary: Rigid body, cloth, soft body, particles, force fields.
+    provider: gaius/blender-physics
+
+  # ----------------------------------------------------------------- output
+  rendering:
+    summary: Engine, sampling, denoise, colour management, output files.
+    provider: cc/blender-rendering
+    fallbacks: [newo/render-workflows]
+  compositing:
+    summary: Post-processing in the compositor (grade, glare, vignette).
+    provider: cc/knowledge-compositing
+  export:
+    summary: glTF/GLB, FBX, OBJ, USD, STL.
+    provider: cc/blender-export
+  web-viewer:
+    summary: GLB export plus a Three.js viewer page.
+    provider: kb/threejs-export
+    fallbacks: [cc/blender-export]
+
+  # ------------------------------------------------- reconstruction / import
+  reference-reconstruction:
+    summary: Rebuild a subject 1:1 from reference sheets, orthographic views or texture packs.
+    provider: cc/reference-to-3d
+  wireframe-to-3d:
+    summary: Orthographic wireframe drawings to a model.
+    provider: cc/wireframe-to-3d
+  logo-mascot:
+    summary: Brand mascots, logos and flat characters, fail-gated against the source.
+    provider: cc/mascot-logo-reconstruction
+  image-to-3d:
+    summary: Photos of a real object to a mesh through a paid generation service.
+    variants:
+      single: {provider: kb/image-to-3d, when: "one photo"}
+      multi: {provider: kb/multi-image-to-3d, when: "two to four photos from different angles"}
+    default: single

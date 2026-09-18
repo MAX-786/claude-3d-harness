@@ -1,0 +1,82 @@
+# Upstream sources composed by this harness. One entry per git submodule.
+#
+# The gitlink recorded in the git index is the authoritative pin.
+# `cataloged_at` is the commit registry/skills.yaml was last reconciled against;
+# when a submodule moves past it, `harness.py verify` reports the catalog as
+# stale until the diff has been reviewed and `harness.py catalog-bump` is run.
+#
+# Keys are short on purpose: they namespace skill ids (cc/blender-lighting vs
+# gaius/blender-lighting), which is how same-named upstream skills coexist.
+
+upstreams:
+  cc:
+    repo: https://github.com/RobLe3/cc-blender-skill
+    path: upstream/cc-blender-skill
+    branch: main
+    license: MIT
+    cataloged_at: "11016c9a5847897491dde935c346571bd7548e3d"
+    skills_root: plugin/skills
+    dialect: ahujasid
+    language: en
+    role: >-
+      Primary skill library (v1.3.0, 30 skills): orchestration conventions,
+      core production domains, reference-locked reconstruction, refinement loop.
+    python_deps: [opencv-python, numpy, scipy, Pillow, scikit-image]
+
+  gaius:
+    repo: https://github.com/Gaius114/blender-claude-mcp
+    path: upstream/blender-claude-mcp
+    branch: main
+    license: MIT
+    cataloged_at: "bb19815283c5761793e4478dfd96c1ec8d5ff2c6"
+    skills_root: skill
+    dialect: blender-lab
+    language: it
+    role: >-
+      Specialist modeling skills the primary library lacks: architecture,
+      procedural, geometry nodes, sculpting, rigging, physics, spatial math.
+    notes: >-
+      Skills are written in Italian, have no `name` frontmatter, and run
+      760-1470 lines each: load one only for the stage that needs it. The repo
+      also ships its own HTTP bridge and Blender addon (port 7234); the harness
+      never installs or uses them.
+
+  kb:
+    repo: https://github.com/kevinbadi/blender-skills
+    path: upstream/blender-skills
+    branch: main
+    license: NONE
+    cataloged_at: "b2f0f816d320b56ae86d52597a35284e0e6cc929"
+    skills_root: .
+    dialect: ahujasid
+    language: en
+    role: Product-shot camera moves, Poly Haven studio helpers, photo-to-3D.
+    license_note: >-
+      Upstream has no license file, so all rights are reserved by its author.
+      It is referenced as a submodule only; never copy its files into this
+      repository or redistribute them.
+
+  jo:
+    repo: https://github.com/jithinolickal/blender
+    path: upstream/jithinolickal-blender
+    branch: main
+    license: Apache-2.0
+    cataloged_at: "6bfca4973e7086696b08b108bfe6aae62ede33c0"
+    skills_root: skills
+    dialect: ahujasid
+    language: en
+    role: Parametric design workflow (slats, planks, organic surfaces), one skill.
+
+  newo:
+    repo: https://github.com/newo-ether/blender-mcp
+    path: upstream/newo-blender-mcp
+    branch: main
+    license: MIT
+    cataloged_at: "37acac7fd25d424b23c8a84f27d6c16c848d810d"   # tag v1.18.0
+    skills_root: skills
+    dialect: ahujasid
+    language: en
+    role: >-
+      Primary MCP server (fork of ahujasid/blender-mcp that keeps its tool
+      names and adds structured node, documentation and instance tools) plus
+      the usage skill for that server.

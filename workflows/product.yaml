@@ -1,0 +1,24 @@
+name: product
+summary: A single product presented for sale - packshot, hero still, optional spin.
+match:
+  - "product photo / packshot / hero shot / e-commerce image"
+  - watch, bottle, shoe, gadget, cosmetics, packaging
+  - the subject is one object and the picture is the deliverable
+stages:
+  - {id: research,  capability: reference-research, min_profile: standard}
+  - {id: plan,      capability: pipeline-planning,  min_profile: standard}
+  - {id: scan,      capability: image-to-3d,        optional: true, when: "the user supplies photos of a real product and asked for generation"}
+  - {id: model,     capability: modeling,           note: "Skip when the product is imported or already in the scene."}
+  - {id: finish,    capability: product-finish,     optional: true, when: "the model was imported (GLB/GLTF, generated mesh) and needs a showroom finish"}
+  - {id: materials, capability: materials}
+  - {id: studio,    capability: studio-environment, min_profile: standard}
+  - {id: lighting,  capability: lighting}
+  - {id: camera,    capability: cameras}
+  - {id: render,    capability: rendering}
+  - {id: refine,    capability: refinement,         min_profile: standard, optional: true, when: "a checkpoint fails twice on the same defect"}
+  - {id: spin,      capability: camera-animation,   optional: true, when: "the user asks for a turntable, loop or reveal"}
+  - {id: spin-qa,   capability: animation-qa,       min_profile: standard, optional: true, when: "a camera move was rendered"}
+  - {id: variants,  capability: look-variants,      optional: true, when: "the user wants colour, finish or lighting options side by side"}
+  - {id: web,       capability: web-viewer,         optional: true, when: "the product should be viewable in a browser"}
+alternatives:
+  - {capability: logo-mascot, when: "the product is a brand mascot or logo object"}

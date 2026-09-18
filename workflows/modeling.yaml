@@ -1,0 +1,24 @@
+name: modeling
+summary: One object or asset, built cleanly and optionally exported.
+match:
+  - "model / make / build a <thing>"
+  - game or web asset, prop, furniture piece, 3D-print part
+  - the object matters more than the picture of it
+stages:
+  - {id: research,  capability: reference-research, min_profile: standard, note: "Real dimensions and part breakdown before any geometry."}
+  - {id: plan,      capability: pipeline-planning,  min_profile: standard}
+  - {id: model,     capability: modeling}
+  - {id: materials, capability: materials}
+  - {id: uv,        capability: uv-texturing,       min_profile: standard, optional: true, when: "image textures, decals or a game/web export are involved"}
+  - {id: lighting,  capability: lighting,           note: "Neutral presentation light; enough to judge form and material."}
+  - {id: camera,    capability: cameras,            min_profile: standard}
+  - {id: render,    capability: rendering}
+  - {id: refine,    capability: refinement,         min_profile: standard, optional: true, when: "a checkpoint fails twice on the same defect"}
+  - {id: export,    capability: export,             optional: true, when: "the user names a target format or platform"}
+alternatives:
+  - {capability: architecture,             when: "the object is a building, room shell, furniture with joinery, or a vehicle"}
+  - {capability: parametric-design,        when: "slats, planks, lattices, repeating or organic parametric surfaces"}
+  - {capability: procedural-modeling,      when: "the form is defined by math (helices, lofts, growth, sweeps)"}
+  - {capability: sculpting,                when: "organic surface detail matters (rock, bark, creature, cloth folds)"}
+  - {capability: wireframe-to-3d,          when: "the user supplies orthographic wireframe drawings"}
+  - {capability: reference-reconstruction, when: "the result must match supplied reference sheets or texture packs 1:1"}

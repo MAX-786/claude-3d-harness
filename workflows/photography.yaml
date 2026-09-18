@@ -1,0 +1,16 @@
+name: photography
+summary: A photographic still where lens, light and composition carry the result.
+match:
+  - "portrait of / still life / macro / 85mm / shallow depth of field / golden hour"
+  - the request is phrased in photographic terms
+  - the scene already exists and needs to be shot well
+stages:
+  - {id: plan,      capability: pipeline-planning, min_profile: standard}
+  - {id: model,     capability: modeling,          optional: true, when: "the subject does not exist yet"}
+  - {id: materials, capability: materials,         optional: true, when: "surfaces still read as flat or untextured"}
+  - {id: camera,    capability: cameras,           note: "Lock lens, framing and focus before lighting."}
+  - {id: lighting,  capability: lighting}
+  - {id: look,      capability: look-calibration,  optional: true, when: "the user supplies a reference photo to match"}
+  - {id: render,    capability: rendering}
+  - {id: grade,     capability: compositing,       min_profile: cinematic}
+  - {id: refine,    capability: refinement,        min_profile: standard, optional: true, when: "a checkpoint fails twice on the same defect"}
