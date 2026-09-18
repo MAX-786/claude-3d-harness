@@ -8,8 +8,9 @@ and update tooling. Blender is driven through one MCP server named `blender`.
 ## When the user asks for anything 3D
 
 Invoke the `blender-harness` skill before doing anything else, including for
-requests that never mention Blender ("make a product shot of a watch"). It
-classifies the job, picks a workflow and gets a load plan from the registry:
+requests that never mention Blender ("make a product shot of a watch"). It points
+to the entry skill, `SKILL.md` at the repository root, which classifies the job,
+picks a workflow and gets a load plan from the registry:
 
 ```bash
 uv run scripts/harness.py resolve -w <workflow> -p <fast|standard|cinematic>
@@ -31,6 +32,8 @@ their skills must not run here. The registry already made those decisions.
 | `workflows/*.yaml` | Ordered stages per job type |
 | `orchestrator/*.md` | Classifier, workflow and skill selection rules, QA loop |
 | `scripts/harness.py` | The engine: doctor, bootstrap, verify, resolve, update, audit |
+| `SKILL.md` | The entry skill. Installed as a plugin, it is the `/claude-3d-harness` command |
+| `.claude-plugin/` | Plugin and marketplace manifests; bump `version` in `plugin.json` to release |
 
 Invariants, all enforced by `uv run scripts/harness.py verify`:
 
@@ -40,8 +43,13 @@ Invariants, all enforced by `uv run scripts/harness.py verify`:
 - Every SKILL.md an upstream ships is cataloged. Uncataloged files are drift.
 - `upstream/` is read-only. Changes to a skill go to its upstream repository;
   local lessons go to `notes/lessons.md`.
+- The entry skill stays at the root as `SKILL.md`, and there is no root
+  `skills/` directory. That layout makes the plugin's command
+  `/claude-3d-harness`; the plugin, marketplace and skill names must match.
+  The plugin reuses the root `.mcp.json`.
 
-Run `verify` after any edit to `registry/` or `workflows/`. To move an upstream
+Run `verify` after any edit to `registry/`, `workflows/`, `SKILL.md` or
+`.claude-plugin/`, and `claude plugin validate .` after editing the manifests. To move an upstream
 forward: `uv run scripts/harness.py update <key>`, review the compare link and
 the audit output, reconcile `registry/skills.yaml`, then
 `uv run scripts/harness.py catalog-bump <key>` and commit the submodule pointer

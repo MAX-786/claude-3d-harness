@@ -14,6 +14,54 @@ The first cinematic job run through the harness, from a grey blockout at 22:07 t
 5.2.2 with Cycles. The renders are stills; the moving rain was added in the edit. 23 seconds, sound on.
 </sub></p>
 
+[Get started](#get-started) · [How it works](#how-it-works) · [A real job](#a-real-job-stage-by-stage) ·
+[Upstreams](#whats-composed) · [Status](#status)
+
+## Get started
+
+You need:
+
+- Claude Code
+- [Blender](https://www.blender.org/download/) 4.2 or newer
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) and [Git](https://git-scm.com/downloads) on your
+  `PATH`
+- optionally `ffmpeg`, for camera-move videos
+
+Windows 11 is tested. macOS and Linux should work but have not been tried yet.
+
+**1. Add the plugin.** In Claude Code, run:
+
+```text
+/plugin marketplace add MAX-786/claude-3d-harness
+/plugin install claude-3d-harness@claude-3d-harness
+```
+
+Then restart Claude Code so the plugin's Blender MCP server starts.
+
+**2. Open Blender** and leave it running. The harness finds it by itself. To see the connection, press `N` in the 3D
+View and open the **BlenderMCP** tab.
+
+**3. Ask for something:**
+
+```text
+/claude-3d-harness a wristwatch on dark slate, soft studio light, one hero render
+```
+
+The first run takes a little longer. The harness downloads its five skill libraries at their pinned commits (about 30
+seconds, once per plugin version). If Blender does not have the MCP extension yet, it offers to install it from the
+pinned release, checked against a SHA-256; restart Blender after that.
+
+You don't have to type the command: describe any 3D job and Claude picks the skill up on its own. Each job writes its
+plan, checkpoint renders, final images and a report to `output/<date>-<job>/` in your current project. Claude Code asks
+before each Blender tool call. `execute_blender_code` runs Python inside Blender, so only allow it if you are
+comfortable with that.
+
+Installed for your user, the Blender MCP server starts with every Claude Code session. To keep it to one project,
+install from that project with `claude plugin install claude-3d-harness@claude-3d-harness --scope project`. To work on
+the harness itself, see [Run from a clone](#run-from-a-clone).
+
+## How it works
+
 The Blender skill libraries on GitHub were each written to be installed on their own. Installed together they
 conflict: they target different MCP servers, two ship a skill with the same name, and some open their own socket to
 Blender. This repository keeps them upstream, pinned as git submodules, and adds the layer that lets Claude Code use
@@ -26,64 +74,10 @@ them together:
 
 It contains no 3D skills of its own.
 
-[Quick start](#quick-start) · [How it works](#how-it-works) · [A real job](#a-real-job-stage-by-stage) ·
-[Upstreams](#whats-composed) · [Status](#status)
-
-## Quick start
-
-You need Windows (tested on 11), [Git](https://git-scm.com/download/win),
-[uv](https://docs.astral.sh/uv/getting-started/installation/), [Blender](https://www.blender.org/download/) 4.2 or
-newer, and Claude Code. `ffmpeg` (camera-move videos) and `node` (some product helpers under the fallback MCP
-provider) are optional.
-
-Clone to a short path. Git on Windows cannot create the submodule directories when the repository root is deeper than
-about 150 characters.
-
-```powershell
-git clone https://github.com/MAX-786/claude-3d-harness.git C:\dev\claude-3d-harness
-cd C:\dev\claude-3d-harness
-.\scripts\install.ps1
-```
-
-`install.ps1` checks out the five upstreams at their pinned commits and writes `.mcp.json`. It downloads the MCP
-provider's Blender extension from its pinned GitHub release, checks it against the SHA-256 recorded in
-`registry/mcp.yaml`, and installs it into every Blender it finds. It finishes with `doctor` and `verify`. Useful
-switches: `-BlenderPath` for a Blender in an unusual place, `-SkipBlenderExtension` to leave Blender alone, and
-`-Mcp ahujasid` for the fallback server.
-
-Then:
-
-1. Start Blender, press `N` in the 3D View and open the **BlenderMCP** tab.
-2. Open Claude Code in the repository folder and approve the `blender` MCP server when asked.
-3. Describe what you want, for example:
-
-   > Create a photorealistic interior of a traditional Japanese room during heavy rain. The camera slowly moves
-   > toward the window. Use free online assets where they help, build the rest, render a preview, inspect it and
-   > refine until the composition and lighting hold together.
-
-Every job gets its own folder under `output/` (git-ignored) holding the plan, checkpoint renders, final images and a
-report.
-
-**macOS and Linux** run the same steps through the engine. Neither has been tested yet.
-
-```bash
-git clone https://github.com/MAX-786/claude-3d-harness.git && cd claude-3d-harness
-uv run scripts/harness.py bootstrap
-uv run scripts/harness.py mcp-config --write
-uv run scripts/harness.py install-extension
-uv run scripts/harness.py doctor
-uv run scripts/harness.py verify
-```
-
-A ZIP download from GitHub contains no submodules. `bootstrap` (and therefore `install.ps1`) handles that case: it
-initialises git and adds each upstream at the commit recorded in `registry/upstreams.yaml`.
-
-## How it works
-
 ```text
              Claude Code
                   |
-   CLAUDE.md + blender-harness skill        the only skill Claude Code loads up front
+   SKILL.md  (/claude-3d-harness)           the only skill Claude Code loads up front
                   |
    classify: fast / standard / cinematic -> choose a workflow
                   |
@@ -250,16 +244,19 @@ skills` prints the full table.
 
 ## The MCP layer
 
-Exactly one server, always named `blender`, generated into `.mcp.json` from `registry/mcp.yaml`.
+Exactly one server, always named `blender`, generated into `.mcp.json` from `registry/mcp.yaml`. The plugin registers
+the same file, so there its tools appear as `mcp__plugin_claude-3d-harness_blender__<tool>` rather than
+`mcp__blender__<tool>`; the entry skill maps between the two.
 
 | Provider | What | When |
 | --- | --- | --- |
 | `newo-ether` (default) | A fork of the original server that keeps its tool names and adds structured node editing, Blender documentation search and multi-instance claiming. Runs through `uvx` from the pinned v1.18.0 wheel. | Blender 4.2 and newer |
 | `ahujasid` | The original ([ahujasid/mcp-for-blender](https://github.com/ahujasid/mcp-for-blender), `blender-mcp==2.0.0`), which every skill library was validated against | Fallback: `.\scripts\install.ps1 -Mcp ahujasid`, then install its `addon.py` by hand |
 
-Telemetry is switched off in the generated config (`DISABLE_TELEMETRY=true`). `.claude/settings.json` pre-allows the
-read-only MCP tools and the harness script; `execute_blender_code`, which runs arbitrary Python inside Blender, still
-asks each time unless you choose "always allow". If you also run the fork's own installer, pass its
+Telemetry is switched off in the generated config (`DISABLE_TELEMETRY=true`). In a clone, `.claude/settings.json`
+pre-allows the read-only MCP tools and the harness script; with the plugin, Claude Code asks for each tool until you
+allow it. Either way `execute_blender_code`, which runs arbitrary Python inside Blender, asks each time unless you
+choose to always allow it. If you also run the fork's own installer, pass its
 `-SkipClaudeCodeRegistration`, `-SkipCodexRegistration`, `-SkipClaudeDesktop` and `-SkipSkillInstallation` switches;
 otherwise a second server named `blender_mcp` competes for the same Blender. `doctor` warns about user-scope duplicates.
 
@@ -293,7 +290,7 @@ Everything runs through `uv run scripts/harness.py <command>`. Its only dependen
 | Command | What it does |
 | --- | --- |
 | `doctor` | Checks git, uv, optional tools, path length, Blender and its extension, submodules, `.mcp.json`, duplicate user-scope Blender servers, and whether the add-on is listening on `127.0.0.1:9876` |
-| `bootstrap` | Checks out every upstream at its pinned commit, including from a ZIP download |
+| `bootstrap` | Checks out every upstream at its pinned commit, also in a copy without git history (plugin install, ZIP download) |
 | `verify` | Validates the registry against the upstream trees |
 | `resolve` | Prints the load plan (`-w`, `-p`, `-c`, `--add`, `--variant`, `--json`) |
 | `list` | Prints upstreams, skills, capabilities, workflows or profiles |
@@ -306,13 +303,66 @@ Everything runs through `uv run scripts/harness.py <command>`. Its only dependen
 
 `scripts/install.ps1`, `update.ps1` and `verify.ps1` are thin Windows wrappers around these.
 
+## Run from a clone
+
+Use a checkout to work on the harness itself, or if you prefer it to the plugin. Disable the plugin while you work in
+the clone, or two Blender servers will compete for the same Blender. Besides the prerequisites above, `node` is useful
+for some product helpers under the fallback MCP provider.
+
+On Windows, clone to a short path. Git cannot create the submodule directories when the repository root is deeper
+than about 150 characters.
+
+```powershell
+git clone https://github.com/MAX-786/claude-3d-harness.git C:\dev\claude-3d-harness
+cd C:\dev\claude-3d-harness
+.\scripts\install.ps1
+```
+
+`install.ps1` checks out the five upstreams at their pinned commits and writes `.mcp.json`. It downloads the MCP
+provider's Blender extension from its pinned GitHub release, checks it against the SHA-256 recorded in
+`registry/mcp.yaml`, and installs it into every Blender it finds. It finishes with `doctor` and `verify`. Useful
+switches: `-BlenderPath` for a Blender in an unusual place, `-SkipBlenderExtension` to leave Blender alone, and
+`-Mcp ahujasid` for the fallback server.
+
+Then:
+
+1. Start Blender, press `N` in the 3D View and open the **BlenderMCP** tab.
+2. Open Claude Code in the repository folder and approve the `blender` MCP server when asked.
+3. Describe what you want, or run `/blender-harness`, for example:
+
+   > Create a photorealistic interior of a traditional Japanese room during heavy rain. The camera slowly moves
+   > toward the window. Use free online assets where they help, build the rest, render a preview, inspect it and
+   > refine until the composition and lighting hold together.
+
+In a clone, jobs go to `output/` in the repository (git-ignored), and `.claude/settings.json` pre-allows the
+read-only Blender tools.
+
+**macOS and Linux** run the same steps through the engine. Neither has been tested yet.
+
+```bash
+git clone https://github.com/MAX-786/claude-3d-harness.git && cd claude-3d-harness
+uv run scripts/harness.py bootstrap
+uv run scripts/harness.py mcp-config --write
+uv run scripts/harness.py install-extension
+uv run scripts/harness.py doctor
+uv run scripts/harness.py verify
+```
+
+A ZIP download from GitHub contains no submodules. `bootstrap` (and therefore `install.ps1`) handles that case: it
+initialises git and adds each upstream at the commit recorded in `registry/upstreams.yaml`.
+
+To try your working copy as a plugin, start Claude Code from another folder with
+`claude --plugin-dir <path to your clone>`.
+
 ## Layout
 
 ```text
-.claude/skills/blender-harness/   the entry-point skill
-.claude/settings.json             read-only MCP tools allowed, upstream/ edit-denied
-.mcp.json                         generated: one server named "blender"
-CLAUDE.md                         always-on instructions for Claude
+SKILL.md                          the entry skill; the plugin serves it as /claude-3d-harness
+.claude-plugin/                   plugin and marketplace manifests
+.claude/skills/blender-harness/   points a clone at SKILL.md
+.claude/settings.json             in a clone: read-only MCP tools allowed, upstream/ edit-denied
+.mcp.json                         generated: one server named "blender", used by the plugin and by clones
+CLAUDE.md                         instructions for Claude when working inside a clone
 registry/                         upstreams, skills, capabilities, profiles, mcp
 workflows/                        six job types as ordered stages
 orchestrator/                     classifier, workflow and skill selection, QA loop
@@ -334,14 +384,19 @@ Verified:
   found through the Windows uninstall registry.
 - `verify` reports 0 failures and 0 warnings against the pinned commits, and the `resolve` and `list` examples in this
   README run as shown.
-- Two jobs end to end: a `fast` single object (a wooden table) and the `cinematic` rooftop study above.
+- The plugin passes `claude plugin validate`, installs into a clean Claude Code configuration, and exposes the
+  `/claude-3d-harness` skill and the `blender` server.
+- Setting up from a copy without git history, as a plugin install or a ZIP download gets: `bootstrap` fetches the five
+  upstreams at their pinned commits and `verify` passes.
+- Two jobs end to end, run from a clone: a `fast` single object (a wooden table) and the `cinematic` rooftop study
+  above.
 
 Not exercised yet:
 
+- A Blender job through the plugin install.
 - macOS and Linux.
 - The `ahujasid` fallback provider in a live session.
 - Animation: camera moves, contact sheets and frame-range renders.
-- Bootstrapping from a ZIP download.
 
 ## Contributing
 
@@ -354,9 +409,12 @@ Issues and pull requests are welcome. Most changes are data:
 | Add an upstream library | `git submodule add`, then an entry in `registry/upstreams.yaml` with its dialect, catalog and routes |
 | Pin a newer MCP release | Update `release`, the URLs and both SHA-256 values in `registry/mcp.yaml`, then `harness.py mcp-config --write` |
 
-Run `uv run scripts/harness.py verify` before opening a pull request. Fixes to a skill's content belong in that
-skill's own repository. If a skill misbehaves in a real job, an entry in `notes/lessons.md` (date, job, what failed,
-what fixed it, which skill) is one of the most useful contributions.
+Run `uv run scripts/harness.py verify` before opening a pull request. It also checks the plugin layout: the entry
+skill stays at the root as `SKILL.md`, with no root `skills/` folder, which is what gives the plugin its
+`/claude-3d-harness` command. Releases bump `version` in `.claude-plugin/plugin.json`; installed copies only update when
+it changes. Fixes to a skill's content belong in that skill's own repository. If a skill misbehaves in a real job, an
+entry in `notes/lessons.md` (date, job, what failed, what fixed it, which skill) is one of the most useful
+contributions.
 
 ## Credits
 

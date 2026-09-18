@@ -1,0 +1,15 @@
+{
+  "name": "claude-3d-harness",
+  "description": "Build Blender scenes with Claude Code through one registry over five community skill libraries.",
+  "owner": {
+    "name": "MAX-786",
+    "url": "https://github.com/MAX-786"
+  },
+  "plugins": [
+    {
+      "name": "claude-3d-harness",
+      "source": "./",
+      "description": "Build Blender scenes with Claude Code. One registry and one Blender MCP server over five community skill libraries, with profiles that scale planning and render checks to the job."
+    }
+  ]
+}

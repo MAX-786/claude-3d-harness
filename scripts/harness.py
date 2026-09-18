@@ -34,7 +34,9 @@ import yaml
 
 ROOT = Path(os.path.abspath(__file__)).parents[1]
 REG = ROOT / "registry"
-ENTRY_SKILL = ROOT / ".claude" / "skills" / "blender-harness" / "SKILL.md"
+ENTRY_SKILL = ROOT / "SKILL.md"  # plugin root: a lone SKILL.md is invoked as /claude-3d-harness
+PROJECT_SKILL = ROOT / ".claude" / "skills" / "blender-harness" / "SKILL.md"  # pointer for clones
+PLUGIN_DIR = ROOT / ".claude-plugin"
 STATUSES = {"active", "chained", "excluded"}
 MAX_ROOT_LEN = 150  # git refuses a submodule git dir longer than ~220 chars on Windows
 
@@ -247,6 +249,23 @@ def cmd_verify(reg: Registry, args) -> int:
                 r.line("WARN", f"entry skill never mentions '{word}'")
     else:
         r.line("FAIL", f"entry skill missing: {rel(ENTRY_SKILL.relative_to(ROOT))}")
+
+    # plugin packaging: one plugin, one root skill, names that agree
+    try:
+        plugin = json.loads((PLUGIN_DIR / "plugin.json").read_text(encoding="utf-8"))
+        market = json.loads((PLUGIN_DIR / "marketplace.json").read_text(encoding="utf-8"))
+        m = re.search(r"^name:\s*(\S+)", ENTRY_SKILL.read_text(encoding="utf-8"), re.M) if ENTRY_SKILL.is_file() else None
+        entries = [p for p in market.get("plugins", []) if p.get("source") in ("./", ".")]
+        if not entries or entries[0].get("name") != plugin.get("name"):
+            r.line("FAIL", ".claude-plugin/marketplace.json must list this plugin with source './' under the name in plugin.json")
+        if not m or m.group(1) != plugin.get("name"):
+            r.line("FAIL", f"SKILL.md frontmatter name must equal the plugin name '{plugin.get('name')}' so the command is /{plugin.get('name')}")
+    except (OSError, ValueError) as exc:
+        r.line("FAIL", f".claude-plugin manifests missing or unreadable: {exc}")
+    if (ROOT / "skills").exists():
+        r.line("FAIL", "a skills/ directory at the root turns the root SKILL.md into a namespaced skill set; keep the entry skill at SKILL.md")
+    if not PROJECT_SKILL.is_file():
+        r.line("WARN", f"project entry skill missing: {rel(PROJECT_SKILL.relative_to(ROOT))} (used when the repository is opened as a project)")
 
     names: dict[str, list[str]] = {}
     for sid, e in reg.skills.items():
@@ -505,6 +524,9 @@ def cmd_bootstrap(reg: Registry, args) -> int:
             if target.is_dir() and not any(target.iterdir()):
                 target.rmdir()  # ZIPs carry an empty folder per submodule, which `submodule add` rejects
             elif target.exists():
+                if (target / up["skills_root"]).is_dir():  # copied in without git metadata, e.g. by a plugin install
+                    print(f"{key:<6} {path:<34} present (copied without git metadata)")
+                    continue
                 raise SystemExit(f"{path} exists, is not empty and is not a registered submodule. Move it away and re-run.")
             git("submodule", "add", "--force", "-b", up["branch"], up["repo"] + ".git", path, check=True)
             git("checkout", "-q", up["cataloged_at"], cwd=ROOT / path, check=True)

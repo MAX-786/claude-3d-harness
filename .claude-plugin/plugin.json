@@ -1,0 +1,12 @@
+{
+  "name": "claude-3d-harness",
+  "description": "Build Blender scenes with Claude Code. One registry and one Blender MCP server over five community skill libraries, with profiles that scale planning and render checks to the job.",
+  "version": "0.1.0",
+  "author": {
+    "name": "MAX-786"
+  },
+  "homepage": "https://github.com/MAX-786/claude-3d-harness",
+  "repository": "https://github.com/MAX-786/claude-3d-harness",
+  "license": "MIT",
+  "keywords": ["blender", "3d", "mcp", "rendering", "cycles", "skills"]
+}
