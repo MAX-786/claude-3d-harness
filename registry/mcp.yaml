@@ -23,6 +23,7 @@ providers:
         # The `:-.` default keeps .mcp.json parseable when the variable is unset.
         BLENDER_MCP_WORKSPACE: ${CLAUDE_PROJECT_DIR:-.}/output
     blender_extension:
+      id: blender_mcp                   # `id` in the extension's blender_manifest.toml; its folder name once installed
       url: https://github.com/newo-ether/blender-mcp/releases/download/v1.18.0/blender_mcp-1.18.0.zip
       sha256: 9859cc4a80a6f244fa364e8f456bc2d477d71a0591322ff42a6b208d26ee3b36
     wheel_sha256: 6fa475dc56ca75b42aa20dc26717ade830526ba9742ebaa33db9fe6480af7bdc

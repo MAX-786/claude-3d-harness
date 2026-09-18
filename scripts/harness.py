@@ -556,12 +556,14 @@ def cmd_install_extension(reg: Registry, args) -> int:
         print(f"Provider '{provider}' has no packaged extension. Install its add-on by hand:\n  {info.get('blender_addon')}\n  {' '.join(info['notes'].split())}")
         return 0
 
-    def version(exe: str) -> tuple[int, ...]:
-        m = re.search(r"(\d+)\.(\d+)", Path(exe).parent.name)
-        return tuple(map(int, m.groups())) if m else (99, 0)
-
     need = tuple(map(int, info["blender_min"].split(".")))
-    blenders = [b for b in ([args.blender] if args.blender else find_blender()) if version(b) >= need]
+    blenders = []
+    for exe in ([args.blender] if args.blender else find_blender()):
+        v = blender_version(exe)
+        if v is not None and v[:2] < need:
+            print(f"skipping {exe}: Blender {'.'.join(map(str, v))} is older than {info['blender_min']}")
+        else:
+            blenders.append(exe)
     if not blenders:
         print(f"No Blender >= {info['blender_min']} found. Install it from https://www.blender.org/download/ and re-run, "
               f"or pass --blender <path to blender executable>.")
@@ -654,6 +656,23 @@ def cmd_audit(reg: Registry, args) -> int:
 def find_blender() -> list[str]:
     found = [shutil.which("blender")] if shutil.which("blender") else []
     if os.name == "nt":
+        import winreg
+
+        # The installer records its location, which covers other drives and drive-root installs.
+        uninstall = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"
+        for hive, sub in ((winreg.HKEY_LOCAL_MACHINE, uninstall), (winreg.HKEY_CURRENT_USER, uninstall),
+                          (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall")):
+            try:
+                root = winreg.OpenKey(hive, sub)
+            except OSError:
+                continue
+            for i in range(winreg.QueryInfoKey(root)[0]):
+                try:
+                    with winreg.OpenKey(root, winreg.EnumKey(root, i)) as key:
+                        if str(winreg.QueryValueEx(key, "DisplayName")[0]).lower().startswith("blender"):
+                            found.append(str(Path(winreg.QueryValueEx(key, "InstallLocation")[0]) / "blender.exe"))
+                except OSError:
+                    continue
         for base in (os.environ.get("ProgramFiles", r"C:\Program Files"), os.environ.get("ProgramFiles(x86)", ""),
                      os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs")):
             if base:
@@ -661,7 +680,27 @@ def find_blender() -> list[str]:
                 found += [str(p) for p in Path(base).glob("Steam/steamapps/common/Blender/blender.exe")]
     elif sys.platform == "darwin":
         found += [str(p) for p in Path("/Applications").glob("Blender*.app/Contents/MacOS/Blender")]
-    return sorted(set(found))
+    return sorted({f for f in found if Path(f).is_file()})
+
+
+def blender_version(exe: str) -> tuple[int, ...] | None:
+    """Ask the executable: folder names say nothing for custom or drive-root installs."""
+    try:
+        out = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=60,
+                             encoding="utf-8", errors="replace").stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    m = re.search(r"Blender (\d+)\.(\d+)(?:\.(\d+))?", out or "")
+    return tuple(int(x) for x in m.groups() if x) if m else None
+
+
+def blender_config_dir(version: tuple[int, ...]) -> Path:
+    name = f"{version[0]}.{version[1]}"
+    if os.name == "nt":
+        return Path(os.environ.get("APPDATA", "")) / "Blender Foundation" / "Blender" / name
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "Blender" / name
+    return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "blender" / name
 
 
 def cmd_doctor(reg: Registry, args) -> int:
@@ -675,9 +714,17 @@ def cmd_doctor(reg: Registry, args) -> int:
         r.line("FAIL" if n > MAX_ROOT_LEN else "WARN" if n > 100 else "OK",
                f"repository path length: {n} characters (submodules need <= {MAX_ROOT_LEN}; tools like node and ffmpeg prefer < 100)")
         r.line("OK" if git("config", "--get", "core.longpaths") == "true" else "WARN", "git core.longpaths enabled for this repository")
-    blenders = find_blender()
-    need = reg.mcp["providers"][reg.active_mcp() or reg.mcp["default_provider"]]["blender_min"]
-    r.line("OK" if blenders else "WARN", f"Blender (>= {need} needed): {', '.join(blenders) or 'not found in standard locations'}")
+    provider = reg.mcp["providers"][reg.active_mcp() or reg.mcp["default_provider"]]
+    need = provider["blender_min"]
+    versions = {exe: blender_version(exe) for exe in find_blender()}
+    shown = ", ".join(f"{exe} ({'.'.join(map(str, v)) if v else 'version unknown'})" for exe, v in versions.items())
+    r.line("OK" if versions else "WARN", f"Blender (>= {need} needed): {shown or 'not found - pass its path: harness.py install-extension --blender <blender executable>'}")
+    ext_id = provider.get("blender_extension", {}).get("id")
+    for exe, v in versions.items():
+        if ext_id and v:
+            installed = (blender_config_dir(v) / "extensions" / "user_default" / ext_id).is_dir()
+            r.line("OK" if installed else "WARN", f"Blender {v[0]}.{v[1]} extension '{ext_id}': " +
+                   ("installed" if installed else "NOT installed, so Blender shows no MCP sidebar tab - run: uv run scripts/harness.py install-extension"))
     missing = missing_upstreams(reg)
     r.line("FAIL" if missing else "OK", f"submodules checked out: {'missing ' + ', '.join(missing) if missing else 'all'}")
     active = reg.active_mcp()
