@@ -1,7 +1,7 @@
 # job folders: plans, previews, renders, node-patch JSON
 output/*
 !output/.gitkeep
-
+brag-output
 # downloaded release assets (Blender extension zip)
 .cache/
 

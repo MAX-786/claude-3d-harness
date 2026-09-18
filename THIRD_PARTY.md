@@ -26,8 +26,13 @@ reason:
 - `registry/skills.yaml` describes its skills in our own words.
 
 If you depend on it, consider asking the author to add a license. If that never
-happens, its capabilities have fallbacks in `registry/capabilities.yaml` and the
-submodule can be dropped without breaking any workflow.
+happens, the submodule can be dropped together with its entries in `registry/`.
+Most of what it provides has a fallback in `registry/capabilities.yaml`: the
+named camera moves fall back to the generic camera and animation skills, and the
+PBR texture, studio, product-finish and web-viewer capabilities have one each.
+Two optional stages of the `product` workflow have no other provider and would
+go with it: `image-to-3d` (photo-to-3D) and `look-variants` (material and HDRI
+comparisons).
 
 ## Runtime downloads
 
