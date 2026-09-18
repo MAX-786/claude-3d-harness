@@ -1,14 +1,12 @@
+
+
+
 # claude-3d-harness
 
 Build Blender scenes with Claude Code using five community skill libraries, through one registry and one MCP
 server.
 
-<!--
-  VIDEO PLACEHOLDER
-  On github.com, open this README in the web editor and drag brag-output/brag-github.mp4 (4.9 MB; free plans accept
-  videos up to 10 MB) onto the empty line below this comment. GitHub uploads it and inserts a
-  https://github.com/user-attachments/assets/... line, which renders as an inline player. Then delete this comment.
--->
+https://github.com/user-attachments/assets/915189cc-cb68-4e78-84b0-212230ff18bf
 
 
 <p align="center"><sub>
