@@ -3,7 +3,11 @@
 Installed plugins only update when `version` in `.claude-plugin/plugin.json`
 changes, so every entry here is a version a user can be on.
 
-## 0.2.0 — unreleased
+## Unreleased
+
+Nothing yet.
+
+## 0.2.0 — 2026-09-20
 
 ### Added
 

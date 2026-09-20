@@ -26,7 +26,10 @@ You need:
   `PATH`
 - optionally `ffmpeg`, for camera-move videos
 
-Windows 11 is tested. macOS and Linux should work but have not been tried yet.
+Windows 11 is tested end to end. On macOS and Linux, CI checks setup, the registry and the load plans on every commit,
+and on Linux it installs the Blender extension into Blender 4.2. A full Blender job on either has not been reported
+yet: if you run one, a [job report](https://github.com/MAX-786/claude-3d-harness/issues/new?template=job-report.yml)
+helps everyone after you.
 
 **1. Add the plugin.** In Claude Code, run:
 
@@ -397,11 +400,14 @@ Verified:
   upstreams at their pinned commits and `verify` passes.
 - Two jobs end to end, run from a clone: a `fast` single object (a wooden table) and the `cinematic` rooftop study
   above.
+- On every commit, CI runs `setup`, `verify --strict`, a load plan and the engine's tests on Linux, macOS and Windows.
+  A second job installs the pinned extension into Blender 4.2.0 on Linux, headless, and checks that `doctor` finds
+  that Blender and the extension.
 
-Not exercised yet:
+Not exercised yet (each has an open issue, and a report from you closes it):
 
 - A Blender job through the plugin install.
-- macOS and Linux.
+- A Blender job on macOS or Linux. CI covers everything up to the point where Blender starts.
 - The `ahujasid` fallback provider in a live session.
 - Animation: camera moves, contact sheets and frame-range renders.
 
