@@ -1,5 +1,11 @@
 blank_issues_enabled: true
 contact_links:
+  - name: Ask a question
+    url: https://github.com/MAX-786/claude-3d-harness/discussions/categories/q-a
+    about: How to install, which workflow to pick, why a job did what it did.
+  - name: Show what you built
+    url: https://github.com/MAX-786/claude-3d-harness/discussions/9
+    about: Post a render with its prompt. If something failed along the way, use the Job report form instead.
   - name: Report a vulnerability
     url: https://github.com/MAX-786/claude-3d-harness/security/advisories/new
     about: Please report security problems privately, not in a public issue. See SECURITY.md.

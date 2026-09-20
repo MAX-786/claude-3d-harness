@@ -62,6 +62,17 @@ Installed for your user, the Blender MCP server starts with every Claude Code se
 install from that project with `claude plugin install claude-3d-harness@claude-3d-harness --scope project`. To work on
 the harness itself, see [Run from a clone](#run-from-a-clone).
 
+**Updating.** An installed plugin stays on its version until you update it. Refresh the marketplace, update the plugin,
+then restart Claude Code. [CHANGELOG.md](CHANGELOG.md) says what each version changed.
+
+```bash
+claude plugin marketplace update claude-3d-harness
+claude plugin update claude-3d-harness@claude-3d-harness
+```
+
+Made something with it? [Show what you built](https://github.com/MAX-786/claude-3d-harness/discussions/9), with the
+prompt next to the render.
+
 ## How it works
 
 The Blender skill libraries on GitHub were each written to be installed on their own. Installed together they
@@ -406,10 +417,14 @@ Verified:
 
 Not exercised yet (each has an open issue, and a report from you closes it):
 
-- A Blender job through the plugin install.
-- A Blender job on macOS or Linux. CI covers everything up to the point where Blender starts.
-- The `ahujasid` fallback provider in a live session.
-- Animation: camera moves, contact sheets and frame-range renders.
+- A Blender job through the plugin install ([#4](https://github.com/MAX-786/claude-3d-harness/issues/4)).
+- A Blender job on macOS ([#2](https://github.com/MAX-786/claude-3d-harness/issues/2)) or Linux
+  ([#3](https://github.com/MAX-786/claude-3d-harness/issues/3)). CI covers everything up to the point where Blender
+  starts.
+- The `ahujasid` fallback provider in a live session
+  ([#5](https://github.com/MAX-786/claude-3d-harness/issues/5)).
+- Animation: camera moves, contact sheets and frame-range renders
+  ([#6](https://github.com/MAX-786/claude-3d-harness/issues/6)).
 
 ## Contributing
 
