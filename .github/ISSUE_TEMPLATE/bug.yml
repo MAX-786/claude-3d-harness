@@ -1,0 +1,43 @@
+name: Bug report
+description: Setup failed, a command misbehaved, or a job did something the README says it should not
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran or asked for, what you expected, and what you got instead.
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of doctor
+      description: |
+        Run `uv run scripts/harness.py doctor` in your clone and paste everything it prints.
+        With the plugin, ask Claude Code to run the harness's doctor command and paste that.
+        It shows the harness version, your OS, the tools it found and the Blender it found. Check it for paths you would rather not share.
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How the harness is installed
+      options:
+        - Plugin (/plugin install)
+        - Clone of the repository
+        - ZIP download
+    validations:
+      required: true
+  - type: input
+    id: mcp
+    attributes:
+      label: MCP provider
+      description: newo-ether unless you switched to ahujasid
+      placeholder: newo-ether v1.18.0
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Error text, the load plan, a screenshot of the BlenderMCP tab, the job's report.md.
