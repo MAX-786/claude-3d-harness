@@ -1,5 +1,9 @@
 # Third-party components
 
+The MIT license in [LICENSE](LICENSE) covers the files of this repository only.
+The git submodules under `upstream/` belong to their authors and carry their own
+terms, listed below.
+
 This repository contains no third-party source. Each upstream is referenced as a
 git submodule: the repository stores a URL and a commit id, and the files are
 fetched from their owners when you run the installer.
