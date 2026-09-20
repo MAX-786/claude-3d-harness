@@ -1,0 +1,80 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  engine:
+    name: engine (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      # No `submodules: true` on purpose: setup has to fetch the upstreams itself, as it does for a user.
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+
+      - name: Set up (without Blender)
+        run: uv run scripts/harness.py setup --skip-blender-extension
+
+      - name: The registry verifies with no warnings
+        run: uv run scripts/harness.py verify --strict
+
+      - name: The command line prints a load plan and the catalog
+        run: |
+          uv run scripts/harness.py resolve -w cinematic -p cinematic
+          uv run scripts/harness.py list skills
+
+      - name: Tests
+        run: uv run --with pytest --with pyyaml pytest -q
+
+  extension:
+    # Installs the pinned extension into the oldest Blender the harness supports, headless.
+    name: extension install (Blender ${{ matrix.blender }}, Linux)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        blender: ["4.2.0"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+
+      - name: Libraries Blender links against
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libxi6 libxxf86vm1 libxfixes3 libxrender1 libgl1 libegl1 libsm6 libxkbcommon0
+
+      - uses: actions/cache@v6
+        id: blender
+        with:
+          path: ~/blender-${{ matrix.blender }}
+          key: blender-${{ matrix.blender }}-linux-x64
+
+      - name: Download Blender
+        if: steps.blender.outputs.cache-hit != 'true'
+        run: |
+          v=${{ matrix.blender }}
+          curl -fsSL --retry 3 -o blender.tar.xz "https://download.blender.org/release/Blender${v%.*}/blender-$v-linux-x64.tar.xz"
+          mkdir -p "$HOME/blender-$v"
+          tar -xf blender.tar.xz --strip-components=1 -C "$HOME/blender-$v"
+          rm blender.tar.xz
+
+      - name: Set up, installing the extension into that Blender
+        run: uv run scripts/harness.py setup --blender "$HOME/blender-${{ matrix.blender }}/blender"
+
+      - name: doctor finds that Blender and sees the extension
+        run: |
+          uv run scripts/harness.py doctor | tee doctor.txt
+          grep -q "extension 'blender_mcp': installed" doctor.txt

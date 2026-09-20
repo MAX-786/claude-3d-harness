@@ -1,0 +1,59 @@
+name: upstream-watch
+
+# Once a week, compare the pins in registry/ with what the upstreams publish now
+# and keep one issue up to date. It never moves a pin: upstream skills are
+# instructions Claude follows with code-execution rights inside Blender, so
+# every move is reviewed by a person (README, "Pinning and updates").
+
+on:
+  schedule:
+    - cron: "17 6 * * 1" # Mondays, 06:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+
+      - name: Compare the pins with upstream
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          uv run scripts/harness.py outdated --markdown > report.md
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+          cat report.md
+
+      - name: Open, update or close the tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: "Upstream watch: pins are behind"
+          CODE: ${{ steps.check.outputs.code }}
+        run: |
+          number=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number --jq '.[0].number // empty')
+          case "$CODE" in
+            3)
+              if [ -z "$number" ]; then
+                gh issue create --title "$TITLE" --body-file report.md
+              elif [ "$(gh issue view "$number" --json body --jq .body)" != "$(cat report.md)" ]; then
+                gh issue edit "$number" --body-file report.md
+                gh issue comment "$number" --body "The report above changed: another pin moved."
+              fi
+              ;;
+            0)
+              if [ -n "$number" ]; then
+                gh issue close "$number" --comment "Every pin matches upstream again."
+              fi
+              ;;
+            *)
+              echo "::error::harness.py outdated could not check the upstreams (exit $CODE)"
+              exit 1
+              ;;
+          esac
