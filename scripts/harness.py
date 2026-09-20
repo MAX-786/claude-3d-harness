@@ -6,6 +6,7 @@
 
 Run with uv so the one dependency resolves itself:
 
+    uv run scripts/harness.py setup                       the whole install on any OS: the four steps below plus verify
     uv run scripts/harness.py doctor                      environment checks
     uv run scripts/harness.py bootstrap                   init git + submodules at the cataloged commits
     uv run scripts/harness.py verify                      registry vs. upstream trees
@@ -14,6 +15,7 @@ Run with uv so the one dependency resolves itself:
     uv run scripts/harness.py where blender-lighting
     uv run scripts/harness.py mcp-config --provider ahujasid --write
     uv run scripts/harness.py install-extension           Blender-side extension of the active MCP provider
+    uv run scripts/harness.py outdated                    read-only: are the pins behind what upstream publishes now?
     uv run scripts/harness.py update [key ...]            move upstreams forward, then verify + audit the changes
     uv run scripts/harness.py audit --since-cataloged
     uv run scripts/harness.py catalog-bump cc
@@ -23,6 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import platform
 import re
 import shutil
 import socket
@@ -37,6 +40,7 @@ REG = ROOT / "registry"
 ENTRY_SKILL = ROOT / "SKILL.md"  # plugin root: a lone SKILL.md is invoked as /claude-3d-harness
 PROJECT_SKILL = ROOT / ".claude" / "skills" / "blender-harness" / "SKILL.md"  # pointer for clones
 PLUGIN_DIR = ROOT / ".claude-plugin"
+LESSONS = ROOT / "notes" / "lessons.md"
 STATUSES = {"active", "chained", "excluded"}
 MAX_ROOT_LEN = 150  # git refuses a submodule git dir longer than ~220 chars on Windows
 
@@ -110,6 +114,27 @@ def rel(p: Path) -> str:
     return p.as_posix()
 
 
+def harness_version() -> str:
+    try:
+        return json.loads((PLUGIN_DIR / "plugin.json").read_text(encoding="utf-8"))["version"]
+    except (OSError, ValueError, KeyError):
+        return "unknown"
+
+
+# "- **cc/blender-lighting (via Cycles) — light linking from Python.** text", or "- **title.** text" for any skill
+LESSON = re.compile(r"^- \*\*(?:(?P<skill>[a-z0-9]+/[\w.-]+)(?: \([^)]*\))?\s[—–-]\s)?(?P<title>.+?)\.?\*\*")
+
+
+def load_lessons() -> list[dict]:
+    """The entries of notes/lessons.md, so a load plan can name the ones that concern its skills."""
+    try:
+        lines = LESSONS.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    found = ((i, LESSON.match(ln)) for i, ln in enumerate(lines, 1))
+    return [{"skill": m.group("skill"), "line": i, "title": m.group("title")} for i, m in found if m]
+
+
 class Report:
     def __init__(self) -> None:
         self.counts = {"FAIL": 0, "WARN": 0}
@@ -119,10 +144,11 @@ class Report:
             self.counts[level] += 1
         print(f"[{level:<4}] {msg}")
 
-    def finish(self, what: str) -> int:
+    def finish(self, what: str, strict: bool = False) -> int:
         f, w = self.counts["FAIL"], self.counts["WARN"]
-        print(f"\n{what}: {'FAILED' if f else 'ok'} ({f} failure(s), {w} warning(s))")
-        return 1 if f else 0
+        bad = bool(f or (strict and w))
+        print(f"\n{what}: {'FAILED' if bad else 'ok'} ({f} failure(s), {w} warning(s))")
+        return 1 if bad else 0
 
 
 # ---------------------------------------------------------------------- verify
@@ -144,7 +170,7 @@ def cmd_verify(reg: Registry, args) -> int:
         if link and link != up["cataloged_at"]:
             r.line("WARN", f"upstream {key}: pinned commit {link[:12]} differs from cataloged_at {up['cataloged_at'][:12]}")
         if not present[key]:
-            r.line("FAIL", f"upstream {key}: {up['path']} is empty - run scripts/install.ps1 (or harness.py bootstrap)")
+            r.line("FAIL", f"upstream {key}: {up['path']} is empty - run: uv run scripts/harness.py setup")
             continue
         head = git("rev-parse", "HEAD", cwd=ROOT / up["path"])
         if head and head != up["cataloged_at"]:
@@ -267,6 +293,11 @@ def cmd_verify(reg: Registry, args) -> int:
     if not PROJECT_SKILL.is_file():
         r.line("WARN", f"project entry skill missing: {rel(PROJECT_SKILL.relative_to(ROOT))} (used when the repository is opened as a project)")
 
+    # a lesson filed under a skill id the catalog does not know would never reach a load plan
+    for lesson in load_lessons():
+        if lesson["skill"] and lesson["skill"] not in reg.skills:
+            r.line("WARN", f"{rel(LESSONS.relative_to(ROOT))}:{lesson['line']}: lesson names '{lesson['skill']}', which is not a cataloged skill id")
+
     names: dict[str, list[str]] = {}
     for sid, e in reg.skills.items():
         if e.get("status") != "excluded" and e.get("kind", "skill") == "skill":
@@ -278,7 +309,7 @@ def cmd_verify(reg: Registry, args) -> int:
     n = {s: sum(1 for e in reg.skills.values() if e.get("status") == s) for s in sorted(STATUSES)}
     print(f"\ncatalog: {len(reg.skills)} entries ({n}), {len(reg.capabilities)} capabilities, "
           f"{len(reg.workflows)} workflows, {len(reg.profiles)} profiles")
-    return r.finish("verify")
+    return r.finish("verify", getattr(args, "strict", False))
 
 
 # --------------------------------------------------------------------- resolve
@@ -312,7 +343,7 @@ def missing_upstreams(reg: Registry) -> list[str]:
 def cmd_resolve(reg: Registry, args) -> int:
     if missing_upstreams(reg):
         raise SystemExit(f"upstream skills are not checked out ({', '.join(missing_upstreams(reg))}). "
-                         f"Run scripts/install.ps1 (or: uv run scripts/harness.py bootstrap) first.")
+                         f"Run this first: uv run scripts/harness.py bootstrap")
     if args.profile not in reg.profiles:
         raise SystemExit(f"unknown profile '{args.profile}' (have: {', '.join(reg.profile_order)})")
     if bool(args.workflow) == bool(args.capabilities):
@@ -364,9 +395,11 @@ def cmd_resolve(reg: Registry, args) -> int:
             seen[sid] = len(rows)
             rows.append(line)
 
+    lessons = [x for x in load_lessons() if x["skill"] is None or x["skill"] in used]
     if args.json:
         print(json.dumps({"workflow": args.workflow, "profile": args.profile, "mcp": active, "root": rel(ROOT),
-                          "budgets": profile["budgets"], "load": rows, "optional": optional, "problems": problems}, indent=2))
+                          "budgets": profile["budgets"], "load": rows, "optional": optional, "problems": problems,
+                          "lessons": lessons}, indent=2))
         return 0
 
     def tags(sid: str) -> str:
@@ -446,6 +479,14 @@ def cmd_resolve(reg: Registry, args) -> int:
         print("\nFALLBACKS (only if the chosen skill is missing or has failed twice on the same defect)")
         for cap, sids in sorted((c, s) for c, s in fallbacks.items() if s):
             print(f"  {cap}: " + ", ".join(f"{s} ({rel(reg.skill_relpath(s))})" for s in sids))
+    if lessons:
+        print(f"\nLESSONS FROM EARLIER JOBS ({rel(LESSONS.relative_to(ROOT))}; read an entry at its line before the stage that uses the skill)")
+        for sid in [*dict.fromkeys(used), None]:
+            mine = [x for x in lessons if x["skill"] == sid]
+            if mine:
+                print(f"  {sid or 'any skill'}")
+                for x in mine:
+                    print(f"    L{x['line']:<4} {x['title']}")
     return 0
 
 
@@ -596,7 +637,11 @@ def cmd_install_extension(reg: Registry, args) -> int:
     sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()  # noqa: E731
     if not target.is_file() or sha(target) != ext["sha256"]:
         print(f"downloading {ext['url']}")
-        urllib.request.urlretrieve(ext["url"], target)
+        try:
+            urllib.request.urlretrieve(ext["url"], target)
+        except OSError as exc:  # URLError included: offline, proxy, release asset moved
+            print(f"download failed: {exc}. Nothing was installed.")
+            return 1
     if sha(target) != ext["sha256"]:
         target.unlink()
         raise SystemExit("checksum mismatch for the downloaded extension - nothing was installed")
@@ -608,6 +653,101 @@ def cmd_install_extension(reg: Registry, args) -> int:
             print(f"  Blender exited with {done.returncode}. Install by hand: Edit > Preferences > Add-ons > Install from Disk > {target}")
     print("Open Blender, press N in the 3D View and check the BlenderMCP tab. Then restart Claude Code.")
     return 0
+
+
+# ----------------------------------------------------------------------- setup
+def cmd_setup(reg: Registry, args) -> int:
+    """The whole install in one command, the same on every OS. Each step is also a command of its own."""
+    print("== 1/4  upstream libraries")
+    cmd_bootstrap(reg, args)
+    print("\n== 2/4  MCP configuration")
+    cmd_mcp_config(reg, argparse.Namespace(provider=args.provider, write=True))
+    print("\n== 3/4  Blender extension")
+    if args.skip_blender_extension:
+        print("skipped (--skip-blender-extension)")
+    elif cmd_install_extension(reg, args):
+        print("The Blender extension was not installed. Install Blender (or pass --blender <executable>), then re-run setup.")
+    print("\n== 4/4  checks")
+    status = cmd_doctor(reg, args) | cmd_verify(reg, args)
+    print("\nSetup finished with open issues: see the FAIL lines above." if status else
+          "\nReady. Start Blender, check the BlenderMCP tab in the 3D View sidebar (N), then open Claude Code in this folder.")
+    return status
+
+
+# -------------------------------------------------------------------- outdated
+def remote_tip(repo: str, branch: str) -> str | None:
+    out = git("ls-remote", repo + ".git", f"refs/heads/{branch}")
+    return out.split()[0] if out else None
+
+
+def fetch_json(url: str) -> dict:
+    import urllib.request
+
+    req = urllib.request.Request(url, headers={"User-Agent": "claude-3d-harness", "Accept": "application/json"})
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if token and url.startswith("https://api.github.com/"):  # the token goes to GitHub and nowhere else
+        req.add_header("Authorization", f"Bearer {token}")
+    with urllib.request.urlopen(req, timeout=20) as fh:
+        return json.load(fh)
+
+
+def cmd_outdated(reg: Registry, args) -> int:
+    """Compare the pins with what upstream publishes now. Changes nothing. Exit 3 when a pin is behind."""
+    rows, errors = [], []
+    # An upstream that carries a pinned MCP release follows that release, not its branch tip.
+    released = {p["upstream"] for p in reg.mcp["providers"].values() if p.get("release") and p.get("upstream")}
+    for key, up in reg.upstreams.items():
+        if key in released:
+            continue
+        tip = remote_tip(up["repo"], up["branch"])
+        if not tip:
+            errors.append(f"upstream {key}: could not read {up['repo']}")
+        elif tip != up["cataloged_at"]:
+            rows.append({"what": f"upstream {key}", "pinned": up["cataloged_at"][:12], "latest": tip[:12],
+                         "review": f"{up['repo']}/compare/{up['cataloged_at'][:12]}...{tip[:12]}",
+                         "next": f"uv run scripts/harness.py update {key}"})
+    for name, p in reg.mcp["providers"].items():
+        pypi = next(filter(None, (re.fullmatch(r"([A-Za-z0-9_.-]+)==([\w.]+)", a) for a in p["launch"]["args"])), None)
+        try:
+            if p.get("release"):
+                slug = p["repo"].removeprefix("https://github.com/")
+                latest = fetch_json(f"https://api.github.com/repos/{slug}/releases/latest")["tag_name"]
+                if latest != p["release"]:
+                    rows.append({"what": f"MCP provider {name}", "pinned": p["release"], "latest": latest,
+                                 "review": f"{p['repo']}/compare/{p['release']}...{latest}",
+                                 "next": "update release, both URLs and both SHA-256 values in registry/mcp.yaml, move the "
+                                         "submodule to the new tag, then: uv run scripts/harness.py mcp-config --write"})
+            elif pypi:
+                latest = fetch_json(f"https://pypi.org/pypi/{pypi.group(1)}/json")["info"]["version"]
+                if latest != pypi.group(2):
+                    rows.append({"what": f"MCP provider {name}", "pinned": pypi.group(2), "latest": latest,
+                                 "review": f"https://pypi.org/project/{pypi.group(1)}/{latest}/",
+                                 "next": "update the pinned version in registry/mcp.yaml, then: uv run scripts/harness.py mcp-config --write"})
+        except (OSError, ValueError, KeyError) as exc:
+            errors.append(f"MCP provider {name}: could not read the latest version ({exc})")
+
+    if args.markdown:
+        if rows:
+            print("These pins are behind what upstream publishes now. Nothing was changed: upstream skills are "
+                  "instructions Claude follows with code-execution rights inside Blender, so each move is reviewed by a person.\n")
+            print("| Pin | Pinned | Latest | Review |\n| --- | --- | --- | --- |")
+            for row in rows:
+                print(f"| {row['what']} | `{row['pinned']}` | `{row['latest']}` | [compare]({row['review']}) |")
+            print("\nNext steps:\n")
+            for row in rows:
+                print(f"- **{row['what']}**: {row['next']}")
+        else:
+            print("Every pin matches what upstream publishes now.")
+        if errors:
+            print("\nCould not check:\n\n" + "\n".join(f"- {e}" for e in errors))
+    else:
+        for row in rows:
+            print(f"{row['what']:<24} {row['pinned']} -> {row['latest']}\n    review: {row['review']}\n    next:   {row['next']}")
+        for e in errors:
+            print(f"could not check: {e}")
+        print(f"\noutdated: {len(rows)} pin(s) behind, {len(errors)} check(s) failed" if rows or errors else
+              "every pin matches what upstream publishes now")
+    return 3 if rows else 1 if errors else 0
 
 
 # ---------------------------------------------------------------- catalog-bump
@@ -701,8 +841,25 @@ def find_blender() -> list[str]:
                 found += [str(p) for p in Path(base).glob("Blender Foundation/Blender*/blender.exe")]
                 found += [str(p) for p in Path(base).glob("Steam/steamapps/common/Blender/blender.exe")]
     elif sys.platform == "darwin":
-        found += [str(p) for p in Path("/Applications").glob("Blender*.app/Contents/MacOS/Blender")]
-    return sorted({f for f in found if Path(f).is_file()})
+        home = Path.home()
+        for base in (Path("/Applications"), home / "Applications",
+                     home / "Library" / "Application Support" / "Steam" / "steamapps" / "common" / "Blender"):
+            found += [str(p) for p in base.glob("Blender*.app/Contents/MacOS/Blender")]
+    else:  # Linux: distro packages and snap are on PATH already; tarballs, Steam and flatpak are not
+        home = Path.home()
+        for base, pattern in ((Path("/opt"), "blender*/blender"), (Path("/usr/local"), "blender*/blender"),
+                              (home, "blender*/blender"), (home / "Applications", "blender*/blender"),
+                              (home / ".local" / "share" / "Steam" / "steamapps" / "common", "Blender/blender"),
+                              (home / ".steam" / "steam" / "steamapps" / "common", "Blender/blender"),
+                              (Path("/var/lib/flatpak/exports/bin"), "org.blender.Blender"),
+                              (home / ".local" / "share" / "flatpak" / "exports" / "bin", "org.blender.Blender")):
+            found += [str(p) for p in base.glob(pattern)]
+    # One entry per real file, but keep the path as found: /snap/bin/blender is a link to the snap launcher itself.
+    unique: dict[str, str] = {}
+    for f in found:
+        if Path(f).is_file():
+            unique.setdefault(os.path.realpath(f), f)
+    return sorted(unique.values())
 
 
 def blender_version(exe: str) -> tuple[int, ...] | None:
@@ -716,8 +873,10 @@ def blender_version(exe: str) -> tuple[int, ...] | None:
     return tuple(int(x) for x in m.groups() if x) if m else None
 
 
-def blender_config_dir(version: tuple[int, ...]) -> Path:
+def blender_config_dir(version: tuple[int, ...], exe: str = "") -> Path:
     name = f"{version[0]}.{version[1]}"
+    if exe.endswith("org.blender.Blender"):  # flatpak keeps each app's config under ~/.var/app/<id>
+        return Path.home() / ".var" / "app" / "org.blender.Blender" / "config" / "blender" / name
     if os.name == "nt":
         return Path(os.environ.get("APPDATA", "")) / "Blender Foundation" / "Blender" / name
     if sys.platform == "darwin":
@@ -727,6 +886,8 @@ def blender_config_dir(version: tuple[int, ...]) -> Path:
 
 def cmd_doctor(reg: Registry, args) -> int:
     r = Report()
+    kind = "plugin install" if "/.claude/plugins/" in rel(ROOT) else "checkout"  # bug reports need to say which
+    r.line("INFO", f"claude-3d-harness {harness_version()} ({kind}) on {platform.platform()}, Python {platform.python_version()}")
     for tool, why in (("git", "submodules"), ("uv", "this script and the MCP server launcher")):
         r.line("OK" if shutil.which(tool) else "FAIL", f"{tool}: {shutil.which(tool) or 'not found'} ({why})")
     for tool, why in (("node", "kb Poly Haven / product-polish scripts under the ahujasid provider"), ("ffmpeg", "kb camera-move video encoding")):
@@ -744,7 +905,7 @@ def cmd_doctor(reg: Registry, args) -> int:
     ext_id = provider.get("blender_extension", {}).get("id")
     for exe, v in versions.items():
         if ext_id and v:
-            installed = (blender_config_dir(v) / "extensions" / "user_default" / ext_id).is_dir()
+            installed = (blender_config_dir(v, exe) / "extensions" / "user_default" / ext_id).is_dir()
             r.line("OK" if installed else "WARN", f"Blender {v[0]}.{v[1]} extension '{ext_id}': " +
                    ("installed" if installed else "NOT installed, so Blender shows no MCP sidebar tab - run: uv run scripts/harness.py install-extension"))
     missing = missing_upstreams(reg)
@@ -770,10 +931,18 @@ def main() -> int:
     for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser(description="claude-3d-harness registry engine")
+    ap.add_argument("--version", action="version", version=f"claude-3d-harness {harness_version()}")
     sub = ap.add_subparsers(dest="cmd", required=True)
+    p = sub.add_parser("setup", help="the whole install: bootstrap, mcp-config, install-extension, doctor, verify")
+    p.add_argument("--provider", help="MCP provider to configure (default: keep the current one)")
+    p.add_argument("--blender", help="path to the blender executable")
+    p.add_argument("--skip-blender-extension", action="store_true", help="leave Blender alone")
     sub.add_parser("doctor", help="check tools, path depth, Blender, submodules, MCP config")
     sub.add_parser("bootstrap", help="init git if needed and check out every upstream at its pinned commit")
-    sub.add_parser("verify", help="validate the registry against the upstream trees")
+    p = sub.add_parser("verify", help="validate the registry against the upstream trees")
+    p.add_argument("--strict", action="store_true", help="treat warnings as failures (CI)")
+    p = sub.add_parser("outdated", help="read-only check: are the pins behind what upstream publishes now?")
+    p.add_argument("--markdown", action="store_true", help="print the report as Markdown (for an issue body)")
     p = sub.add_parser("resolve", help="print the load plan for a job")
     p.add_argument("-w", "--workflow")
     p.add_argument("-c", "--capabilities", nargs="+", default=[])

@@ -6,6 +6,12 @@ went wrong, what fixed it, and which skill (`<key>/<name>`) it concerns. Entries
 that keep recurring are worth an issue or pull request on the upstream
 repository, or a routing change in `registry/capabilities.yaml`.
 
+`harness.py resolve` reads this file: every load plan ends with the entries that
+concern its skills, by line number. For that, an entry is one top-level bullet
+that opens with `**<key>/<name> — short title.**`, or with `**short title.**`
+when it concerns no single skill. `harness.py verify` warns when the id is not
+in the catalog.
+
 ## 2026-09-18 — job 20260918-2152-anime-rooftop-study (cinematic, Blender 5.2.2, newo-ether v1.18.0)
 
 Paths under `output/` below are in that job's folder, which git ignores; they exist on the machine that ran it.

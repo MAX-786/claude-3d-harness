@@ -38,8 +38,10 @@ If the same defect survives two passes, stop varying parameters. Load the
 `refinement` capability: it diagnoses which dimension is failing and whether the
 skills in use can fix it at all. Its steps about patching skill files,
 versioning and releases do not apply here; write the lesson to
-`notes/lessons.md`. If refinement points at the provider itself, this is the one
-case for loading that capability's fallback.
+`notes/lessons.md`, which later load plans read back. Before escalating, check
+the plan's LESSONS section: the defect may already have a recorded fix. If
+refinement points at the provider itself, this is the one case for loading that
+capability's fallback.
 
 ## Stop conditions
 

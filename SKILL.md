@@ -101,6 +101,12 @@ their conditions, alternatives you can add, the budgets of the profile, and the
 adaptation notes for the skills it chose. `uv run "H/scripts/harness.py" list
 capabilities` shows the whole vocabulary. Read the skills marked `always` now.
 
+The plan ends with LESSONS FROM EARLIER JOBS: what went wrong with these same
+skills before, and what fixed it, by line number in `H/notes/lessons.md`. Read
+the entries for the MCP usage skill now, and the entries for any other skill
+just before its stage. They are short, and each one cost a failed attempt to
+learn.
+
 ### 4. Plan
 
 Follow the `plan` budget. For `standard` and `cinematic`, create
@@ -161,7 +167,8 @@ adjustments. The load plan repeats the ones that apply.
 - **`upstream/` is read-only.** It holds other people's repositories at pinned
   commits. When an upstream skill tells you to patch a skill file or cut a
   release, record the lesson in the job's report instead; in a clone of the
-  harness repository, also add it to `notes/lessons.md`.
+  harness repository, also add it to `notes/lessons.md` in the form that file
+  describes, so the next load plan can name it.
 - **Output paths.** Upstream examples write to `/tmp/...` or `~/Desktop/...`.
   `/tmp` does not exist for Blender's Python on Windows. Use the absolute path of
   the job folder under `output/` for every render, export and intermediate file.
