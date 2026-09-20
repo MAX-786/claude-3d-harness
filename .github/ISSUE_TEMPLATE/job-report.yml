@@ -1,0 +1,45 @@
+name: Job report
+description: You ran a job. Show what came out, good or bad. These reports are how the harness learns.
+labels: [job-report]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A job that went well is as useful as one that failed: it tells everyone that a workflow, an OS or a Blender version works.
+        Drag renders straight into any text box. Share only images you are happy to see in the README's gallery or in `notes/lessons.md`, and say so if you would rather they stay in this issue.
+  - type: textarea
+    id: prompt
+    attributes:
+      label: What you asked for
+      description: The prompt, as close to word for word as you can.
+    validations:
+      required: true
+  - type: input
+    id: route
+    attributes:
+      label: Profile and workflow the harness chose
+      placeholder: standard / product
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: What came out
+      description: The final render, and a checkpoint or two if they tell the story. Roughly how long it took.
+    validations:
+      required: true
+  - type: textarea
+    id: lessons
+    attributes:
+      label: What went wrong, and what fixed it
+      description: |
+        One line each: the skill it concerns (the load plan names them, for example `cc/blender-lighting`), what failed, what fixed it.
+        These become entries in `notes/lessons.md`.
+  - type: input
+    id: system
+    attributes:
+      label: System
+      description: OS, Blender version, GPU, plugin or clone. The first line of `harness.py doctor` has most of it.
+      placeholder: macOS 15.6, Blender 4.5.3, M3 Pro, plugin 0.2.0
+    validations:
+      required: true

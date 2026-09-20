@@ -1,0 +1,44 @@
+name: Propose a skill library
+description: A Blender skill library, or a single skill, that the registry should route to
+labels: [upstream]
+body:
+  - type: input
+    id: repo
+    attributes:
+      label: Repository
+      placeholder: https://github.com/owner/repo
+    validations:
+      required: true
+  - type: input
+    id: license
+    attributes:
+      label: License
+      description: A library without a license can only ever be referenced, never adapted, and may be dropped. Say "none" if there is none.
+    validations:
+      required: true
+  - type: textarea
+    id: capabilities
+    attributes:
+      label: What it would add
+      description: |
+        Which capabilities it covers (`uv run scripts/harness.py list capabilities` shows the current ones), and for each, whether it should become the provider, a fallback, or something new.
+        The registry routes every capability to exactly one skill, so say why this one should win where it overlaps.
+    validations:
+      required: true
+  - type: dropdown
+    id: dialect
+    attributes:
+      label: Which Blender MCP server its skills were written for
+      options:
+        - ahujasid/blender-mcp (tools named mcp__blender__*)
+        - newo-ether/blender-mcp
+        - Another server (name it below)
+        - It opens its own socket or bridge to Blender
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything the harness should know
+      description: Scripts it bundles, paid services it calls, its own installer or add-on, the language it is written in.

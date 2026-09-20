@@ -1,13 +1,12 @@
-
-
-
 # claude-3d-harness
+
+[![ci](https://github.com/MAX-786/claude-3d-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/MAX-786/claude-3d-harness/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Build Blender scenes with Claude Code using five community skill libraries, through one registry and one MCP
 server.
 
 https://github.com/user-attachments/assets/915189cc-cb68-4e78-84b0-212230ff18bf
-
 
 <p align="center"><sub>
 The first cinematic job run through the harness, from a grey blockout at 22:07 to the final frame at 01:37, in Blender
@@ -203,7 +202,8 @@ Some of what the checkpoints caught:
 And what did not work: OptiX failed to compile on the installed NVIDIA driver (566.07; Blender 5.2 needs 575 or newer),
 so the job rendered on CUDA. Light linking set from Python was not honoured, so spill light was controlled by aiming
 and ray visibility instead. The overhead street wires are too thin to read at 1080p. These are recorded in
-[notes/lessons.md](notes/lessons.md), together with the MCP quirks found along the way.
+[notes/lessons.md](notes/lessons.md), together with the MCP quirks found along the way. Every load plan ends with the
+lessons that concern its skills, so the next job starts from them instead of finding them again.
 
 ## Profiles and workflows
 
@@ -268,6 +268,8 @@ reviewed rather than pulled in automatically.
 - Each upstream is a submodule at a reviewed commit (`cataloged_at` in `registry/upstreams.yaml`).
 - The MCP server and its Blender extension are pinned to one release. The extension is checked against the SHA-256 in
   `registry/mcp.yaml` before it is installed; the server wheel's SHA-256 is recorded there as well.
+- `outdated` compares the pins with what the upstreams publish now and changes nothing. A weekly workflow runs it and
+  keeps one issue listing the pins that are behind.
 - `update` moves upstreams to their branch tips and stages nothing. It prints a GitHub compare link per upstream,
   reports catalog drift, and audits the changed files for network calls, shell or dynamic execution, credentials,
   agent-config tampering, installs and destructive file operations. The flags prompt a human review; they are not
@@ -289,9 +291,11 @@ Everything runs through `uv run scripts/harness.py <command>`. Its only dependen
 
 | Command | What it does |
 | --- | --- |
-| `doctor` | Checks git, uv, optional tools, path length, Blender and its extension, submodules, `.mcp.json`, duplicate user-scope Blender servers, and whether the add-on is listening on `127.0.0.1:9876` |
+| `setup` | The whole install on any OS: `bootstrap`, `mcp-config --write`, `install-extension`, `doctor`, `verify` (`--provider`, `--blender <path>`, `--skip-blender-extension`) |
+| `doctor` | Prints the harness version and your system, then checks git, uv, optional tools, path length, Blender and its extension, submodules, `.mcp.json`, duplicate user-scope Blender servers, and whether the add-on is listening on `127.0.0.1:9876` |
 | `bootstrap` | Checks out every upstream at its pinned commit, also in a copy without git history (plugin install, ZIP download) |
-| `verify` | Validates the registry against the upstream trees |
+| `verify` | Validates the registry against the upstream trees (`--strict` fails on warnings too, as CI does) |
+| `outdated` | Read-only: lists the pins that are behind the upstream branch tips or the MCP server's latest release |
 | `resolve` | Prints the load plan (`-w`, `-p`, `-c`, `--add`, `--variant`, `--json`) |
 | `list` | Prints upstreams, skills, capabilities, workflows or profiles |
 | `where <name>` | Finds every skill with a given bare name |
@@ -301,7 +305,8 @@ Everything runs through `uv run scripts/harness.py <command>`. Its only dependen
 | `audit` | Flags risky patterns in upstream files (`--since-cataloged`, `-v`) |
 | `catalog-bump` | Records the checked-out commit as reviewed |
 
-`scripts/install.ps1`, `update.ps1` and `verify.ps1` are thin Windows wrappers around these.
+`scripts/install.ps1`, `update.ps1` and `verify.ps1` are thin Windows wrappers: around `setup`, around `update`, and
+around `doctor` plus `verify`.
 
 ## Run from a clone
 
@@ -337,16 +342,16 @@ Then:
 In a clone, jobs go to `output/` in the repository (git-ignored), and `.claude/settings.json` pre-allows the
 read-only Blender tools.
 
-**macOS and Linux** run the same steps through the engine. Neither has been tested yet.
+**macOS and Linux** run the same steps through the engine's `setup` command, which is what `install.ps1` calls.
+Neither has had a full Blender job run on it yet.
 
 ```bash
 git clone https://github.com/MAX-786/claude-3d-harness.git && cd claude-3d-harness
-uv run scripts/harness.py bootstrap
-uv run scripts/harness.py mcp-config --write
-uv run scripts/harness.py install-extension
-uv run scripts/harness.py doctor
-uv run scripts/harness.py verify
+uv run scripts/harness.py setup
 ```
+
+`--blender <path>` names a Blender in an unusual place, `--skip-blender-extension` leaves Blender alone, and
+`--provider ahujasid` configures the fallback server.
 
 A ZIP download from GitHub contains no submodules. `bootstrap` (and therefore `install.ps1`) handles that case: it
 initialises git and adds each upstream at the commit recorded in `registry/upstreams.yaml`.
@@ -367,8 +372,10 @@ registry/                         upstreams, skills, capabilities, profiles, mcp
 workflows/                        six job types as ordered stages
 orchestrator/                     classifier, workflow and skill selection, QA loop
 scripts/                          harness.py engine and the install / update / verify wrappers
+tests/                            tests for the engine; pytest.ini keeps pytest out of upstream/
+.github/                          CI, the weekly upstream watch, issue forms
 upstream/                         the submodules (read-only)
-notes/lessons.md                  lessons from real jobs
+notes/lessons.md                  lessons from real jobs; load plans read them back
 docs/media/                       the stage-render GIF used in this README
 output/                           job folders: plans, checkpoints, renders, reports (git-ignored)
 ```
@@ -409,12 +416,14 @@ Issues and pull requests are welcome. Most changes are data:
 | Add an upstream library | `git submodule add`, then an entry in `registry/upstreams.yaml` with its dialect, catalog and routes |
 | Pin a newer MCP release | Update `release`, the URLs and both SHA-256 values in `registry/mcp.yaml`, then `harness.py mcp-config --write` |
 
-Run `uv run scripts/harness.py verify` before opening a pull request. It also checks the plugin layout: the entry
-skill stays at the root as `SKILL.md`, with no root `skills/` folder, which is what gives the plugin its
-`/claude-3d-harness` command. Releases bump `version` in `.claude-plugin/plugin.json`; installed copies only update when
-it changes. Fixes to a skill's content belong in that skill's own repository. If a skill misbehaves in a real job, an
-entry in `notes/lessons.md` (date, job, what failed, what fixed it, which skill) is one of the most useful
-contributions.
+Run `uv run scripts/harness.py verify --strict` and `uv run --with pytest --with pyyaml pytest -q` before opening a pull
+request; CI runs both on Linux, macOS and Windows. `verify` also checks the plugin layout: the entry skill stays at the
+root as `SKILL.md`, with no root `skills/` folder, which is what gives the plugin its `/claude-3d-harness` command.
+Releases bump `version` in `.claude-plugin/plugin.json`; installed copies only update when it changes. Fixes to a
+skill's content belong in that skill's own repository. If a skill misbehaves in a real job, an entry in
+`notes/lessons.md` (date, job, what failed, what fixed it, which skill) is one of the most useful contributions, and so
+is a job report issue with your render. The full guide is [CONTRIBUTING.md](CONTRIBUTING.md); security reports go
+through [SECURITY.md](SECURITY.md).
 
 ## Credits
 

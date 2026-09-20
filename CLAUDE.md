@@ -31,9 +31,12 @@ their skills must not run here. The registry already made those decisions.
 | `registry/mcp.yaml` | The MCP providers, the pinned release, the dialect translation tables |
 | `workflows/*.yaml` | Ordered stages per job type |
 | `orchestrator/*.md` | Classifier, workflow and skill selection rules, QA loop |
-| `scripts/harness.py` | The engine: doctor, bootstrap, verify, resolve, update, audit |
+| `scripts/harness.py` | The engine: setup, doctor, bootstrap, verify, resolve, outdated, update, audit |
+| `tests/` | Tests for the engine. `pytest.ini` keeps pytest out of `upstream/`, where collecting a file would run it |
+| `.github/workflows/` | `ci.yml` (three OSes, plus the extension install into Blender 4.2 on Linux) and the weekly `upstream-watch.yml` |
+| `notes/lessons.md` | Lessons from real jobs. `resolve` prints the ones that concern a load plan's skills, so keep the entry form the file describes |
 | `SKILL.md` | The entry skill. Installed as a plugin, it is the `/claude-3d-harness` command |
-| `.claude-plugin/` | Plugin and marketplace manifests; bump `version` in `plugin.json` to release |
+| `.claude-plugin/` | Plugin and marketplace manifests; bump `version` in `plugin.json` to release, and move the "Unreleased" notes in `CHANGELOG.md` |
 
 Invariants, all enforced by `uv run scripts/harness.py verify`:
 
@@ -49,7 +52,10 @@ Invariants, all enforced by `uv run scripts/harness.py verify`:
   The plugin reuses the root `.mcp.json`.
 
 Run `verify` after any edit to `registry/`, `workflows/`, `SKILL.md` or
-`.claude-plugin/`, and `claude plugin validate .` after editing the manifests. To move an upstream
+`.claude-plugin/`, and `claude plugin validate .` after editing the manifests.
+After editing `scripts/harness.py`, run the tests:
+`uv run --with pytest --with pyyaml pytest -q`. CI runs `verify --strict` and
+the tests on Linux, macOS and Windows. To move an upstream
 forward: `uv run scripts/harness.py update <key>`, review the compare link and
 the audit output, reconcile `registry/skills.yaml`, then
 `uv run scripts/harness.py catalog-bump <key>` and commit the submodule pointer
