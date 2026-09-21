@@ -58,6 +58,7 @@ capabilities:
   asset-sourcing:
     summary: Free online assets (Poly Haven models, textures, HDRIs; Sketchfab) through MCP tools.
     provider: newo/asset-workflows
+    fallbacks: [kb/polyhaven-scene-builder]
 
   # ------------------------------------------------------------ look-dev
   materials:
@@ -70,30 +71,45 @@ capabilities:
     fallbacks: [gaius/blender-texture]
   pbr-textures:
     summary: Apply downloaded Poly Haven PBR texture sets to objects.
-    provider: newo/asset-workflows
-    fallbacks: [cc/blender-uv-texturing]
+    provider: kb/polyhaven-texture-apply
+    fallbacks: [newo/asset-workflows]
   lighting:
     summary: Scene and subject lighting.
     provider: cc/blender-lighting
     fallbacks: [gaius/blender-lighting]
   studio-environment:
     summary: HDRI-lit product studio with ground or pedestal.
-    provider: cc/blender-lighting
+    provider: kb/polyhaven-studio-setup
+    fallbacks: [cc/blender-lighting]
   product-finish:
     summary: Glossy showroom finish for an imported product model.
-    provider: cc/blender-materials
+    provider: kb/product-polish
+    fallbacks: [cc/blender-materials]
   look-calibration:
     summary: Match the render to a supplied reference image.
     provider: cc/reference-look-calibration
+  look-variants:
+    summary: Comparison renders of one subject across materials or HDRIs.
+    variants:
+      materials: {provider: kb/polyhaven-material-swap, when: "colour or finish options of one product"}
+      hdris: {provider: kb/polyhaven-hdri-showcase, when: "same product under several lighting environments"}
+    default: materials
 
   # ------------------------------------------------------ camera and motion
   cameras:
     summary: Framing, lens, depth of field, composition.
     provider: cc/blender-cameras
   camera-animation:
-    summary: Camera moves around or toward a subject - orbit, push-in, reveal.
-    provider: cc/blender-cameras
-    fallbacks: [cc/blender-animation]
+    summary: Named camera moves around a subject.
+    variants:
+      turntable: {provider: kb/turntable, when: "classic 360 product spin"}
+      perfect-loop: {provider: kb/perfect-loop, when: "spin that must loop seamlessly"}
+      slow-zoom: {provider: kb/slow-zoom, when: "slow push-in toward a detail or a window"}
+      dolly-rotate: {provider: kb/dolly-rotate, when: "forward move combined with rotation"}
+      crane-shot: {provider: kb/crane-shot, when: "low-to-high reveal"}
+      dynamic-full-loop: {provider: kb/dynamic-full-loop, when: "energetic loop with speed ramps, all sides"}
+    default: turntable
+    fallbacks: [cc/blender-cameras, cc/blender-animation]
   animation:
     summary: Object, light and property animation.
     provider: cc/blender-animation
@@ -119,8 +135,9 @@ capabilities:
     summary: glTF/GLB, FBX, OBJ, USD, STL.
     provider: cc/blender-export
   web-viewer:
-    summary: GLB export ready for a browser viewer.
-    provider: cc/blender-export
+    summary: GLB export plus a Three.js viewer page.
+    provider: kb/threejs-export
+    fallbacks: [cc/blender-export]
 
   # ------------------------------------------------- reconstruction / import
   reference-reconstruction:
@@ -133,5 +150,9 @@ capabilities:
     summary: Brand mascots, logos and flat characters, fail-gated against the source.
     provider: cc/mascot-logo-reconstruction
   image-to-3d:
-    summary: Photos of a real object to a mesh through the MCP server's generation tools (Hyper3D, Hunyuan3D).
-    provider: newo/asset-workflows
+    summary: Photos of a real object to a mesh through a paid generation service.
+    variants:
+      single: {provider: kb/image-to-3d, when: "one photo"}
+      multi: {provider: kb/multi-image-to-3d, when: "two to four photos from different angles"}
+    default: single
+    fallbacks: [newo/asset-workflows]

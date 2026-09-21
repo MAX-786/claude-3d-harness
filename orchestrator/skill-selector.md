@@ -47,7 +47,7 @@ tools of the one server that runs:
 
 | Dialect | Used by | What changes |
 | --- | --- | --- |
-| `ahujasid` | cc, jo, newo | Nothing: `mcp__blender__*` already matches. |
+| `ahujasid` | cc, kb, jo, newo | Nothing: `mcp__blender__*` already matches. |
 | `blender-lab` | gaius | `mcp__Blender__*` with another tool surface; summaries and screenshots map to canonical tools, render-to-path and view jumps become small `execute_blender_code` calls. |
 
 A tool a library skill mentions that is neither canonical nor mapped does not

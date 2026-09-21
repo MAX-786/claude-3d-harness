@@ -1,8 +1,8 @@
 # claude-3d-harness
 
 A harness for building 3D scenes in Blender with Claude Code. The 3D skills
-live in `library/`: four open-source skill libraries, vendored, security-reviewed
-and checksummed. Around them sit the registry that routes between them, the
+live in `library/`: five skill libraries, vendored, security-reviewed and
+checksummed. Four are open source; `library/kb` is included by permission. Around them sit the registry that routes between them, the
 workflows, the complexity profiles and the install tooling. Blender is driven
 through one MCP server named `blender`.
 
@@ -51,7 +51,8 @@ Invariants, all enforced by `uv run scripts/harness.py verify`:
   `uv run scripts/harness.py audit --changed`, read what it flags, then
   `uv run scripts/harness.py checksums --write`, and commit both together.
 - Every library has an entry in `registry/libraries.yaml` and ships its
-  `LICENSE`. Only vendor what a license lets you copy.
+  `LICENSE`. Only vendor what a license or a permission lets you copy; a library
+  with `license: permission` needs a `license_note`, which `verify` prints.
 - `library/` is never edited during a 3D job; lessons go to `notes/lessons.md`.
   Improving a skill is a separate change, reviewed like code, because Claude
   follows these files with code-execution rights inside Blender.
@@ -68,5 +69,8 @@ the tests on Linux, macOS and Windows. The library follows nobody's
 branch: to take an improvement from a library's origin, port it by hand as a
 skill change (never re-import a folder, which would undo the security fixes).
 
-`kevinbadi/blender-skills` has no license, so it is not in the library. Never
-copy from it or from any other source without a license that allows it.
+`library/kb` is not open source. Its origin publishes no license; it is here on
+the maintainer's statement that the author gave permission privately, and the
+MIT license does not cover it (`library/kb/LICENSE`). Do not copy anything else
+from that origin (its `blender-toolkit/` is another author's work), and never
+copy from any source without a license or a permission that allows it.

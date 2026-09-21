@@ -3,7 +3,7 @@
 [![ci](https://github.com/MAX-786/claude-3d-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/MAX-786/claude-3d-harness/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Build Blender scenes with Claude Code: a built-in, security-reviewed library of 43 Blender skills, behind one registry
+Build Blender scenes with Claude Code: a built-in, security-reviewed library of 58 Blender skills, behind one registry
 and one MCP server.
 
 https://github.com/user-attachments/assets/915189cc-cb68-4e78-84b0-212230ff18bf
@@ -78,7 +78,7 @@ Claude can drive Blender on its own. What it lacks is what a production artist c
 in, what a believable material needs, when to stop and look. The open-source Blender skill libraries on GitHub hold
 much of that, but each was written to be installed alone. Installed together they conflict: they target different MCP
 servers, two ship a skill with the same name, and some carry their author's own machine inside them. This repository
-brings four of them in (`library/`), reviews and fixes what they contain, and adds the layer that lets Claude Code use
+brings five of them in (`library/`), reviews and fixes what they contain, and adds the layer that lets Claude Code use
 them as one:
 
 - a registry that routes every capability to exactly one skill, with fallbacks;
@@ -144,6 +144,7 @@ FALLBACKS (only if the chosen skill is missing or has failed twice on the same d
 More ways to call it:
 
 ```powershell
+uv run scripts/harness.py resolve -w product -p standard --variant camera-animation=perfect-loop
 uv run scripts/harness.py resolve -w modeling -p fast --add architecture
 uv run scripts/harness.py resolve -c materials lighting -p fast    # an edit to an existing scene
 uv run scripts/harness.py list capabilities
@@ -159,8 +160,9 @@ These problems turned up while cataloging the libraries:
   skills that need it.
 - **Name collisions.** Two libraries ship `blender-lighting`. The registry namespaces them (`cc/blender-lighting`,
   `gaius/blender-lighting`), routes one and keeps the other as a fallback.
-- **Second execution paths.** Three skills carried a helper that sends code to a private HTTP bridge, and other
-  libraries needed their own add-on or socket. The harness runs one MCP server, so those were left out or removed.
+- **Second execution paths.** Three skills carried a helper that sends code to a private HTTP bridge, and seven
+  bundled Node scripts that opened the Blender add-on's socket themselves. The harness runs one MCP server, so the
+  helpers and scripts were removed and those skills now go through it.
 - **Skills written for one person's machine.** Imports from `D:\...`, renders to the author's Downloads folder,
   recipes that begin by emptying the scene, a loop that rewrites skill files when a render is rejected. See
   [Security](#security).
@@ -248,28 +250,32 @@ You can read every one of them before Claude does.
 | --- | --- | --- | --- | --- |
 | `cc` | [RobLe3/cc-blender-skill](https://github.com/RobLe3/cc-blender-skill) | MIT | 30 | Primary library: execution conventions, modeling, materials, lighting, cameras, rendering, animation, export, reference-locked reconstruction, refinement loop |
 | `gaius` | [Gaius114/blender-claude-mcp](https://github.com/Gaius114/blender-claude-mcp) | MIT | 11 | Specialists the primary lacks: architecture, procedural modeling, geometry nodes, sculpting, rigging, physics, spatial layout, research. The skill text is in Italian; for seven of these capabilities it is the only provider. |
+| `kb` | [kevinbadi/blender-skills](https://github.com/kevinbadi/blender-skills) | **none: included by permission, not covered by this repository's MIT license** | 15 | Named product camera moves, Poly Haven studio, scene, texture and look-variant helpers, glossy product finish, Three.js web viewer, photo-to-3D through Meshy |
 | `jo` | [jithinolickal/blender](https://github.com/jithinolickal/blender) | Apache-2.0 | 1 | Parametric design workflow |
 | `newo` | [newo-ether/blender-mcp](https://github.com/newo-ether/blender-mcp) | MIT | 1 | Usage skill for the MCP server (the server itself is fetched from its pinned release, v1.18.0) |
 
-All 43 SKILL.md files and 3 reference documents are cataloged in `registry/skills.yaml`: 33 routable and 13 loaded only
+All 58 SKILL.md files and 3 reference documents are cataloged in `registry/skills.yaml`: 48 routable and 13 loaded only
 through a parent skill. `verify` fails when an entry points at a missing file, when any library file differs from
 `library/SHA256SUMS`, and warns when the library holds a SKILL.md the catalog does not know. `uv run
 scripts/harness.py list skills` prints the full table; `list libraries` prints where each library came from.
 
-A fifth library that earlier versions referenced, `kevinbadi/blender-skills`, is not here: it publishes no license, so
-it may not be copied. Its capabilities route to other skills for now ([THIRD_PARTY.md](THIRD_PARTY.md)).
+**`library/kb` is not open source.** Its author publishes no license; the files are here on the maintainer's statement
+that the author gave permission privately, and this repository's MIT license does not cover them. If you fork or reuse
+this project, read [THIRD_PARTY.md](THIRD_PARTY.md) first.
 
 ## Security
 
 Skills are instructions Claude follows while it can run Python inside Blender, so they were reviewed like code before
 they were included: every text file read in full, a pattern scan for network calls, dynamic execution, installs,
 hidden text and scene wipes, and each finding checked before anything was changed. Nothing malicious was found. What
-was found, and removed from 21 files:
+was found, and removed from 30 files:
 
 - imports from fixed folders on an author's own drive, which anyone able to create that folder could use to run code
   inside your Blender;
-- helpers that POST code to an unauthenticated HTTP bridge, and a snippet that switched on Blender's online-access
-  preference;
+- helpers that POST code to an unauthenticated HTTP bridge, a snippet that switched on Blender's online-access
+  preference, and seven Node scripts that drove Blender's add-on socket directly, building the Python they sent by
+  pasting command-line text into it;
+- an instruction to fetch an API key from the agent's memory files;
 - recipes that emptied the open scene, deleted materials by name or wiped the World;
 - a refinement loop that wrote new instructions into skill files and prepared commits when you rejected a render;
 - a bundled script that could overwrite the drawing it was analysing.
@@ -420,8 +426,9 @@ Verified on 0.2.0 and not re-run since the skills moved and were edited:
 - The plugin installs into a clean Claude Code configuration and exposes the `/claude-3d-harness` skill and the
   `blender` server.
 - Two jobs end to end, run from a clone: a `fast` single object (a wooden table) and the `cinematic` rooftop study
-  above. **No Blender job has been run on 0.3.0 yet.** The edits to the skills remove steps rather than add them, but
-  the world reset in the always-loaded execution skill is new code and has not rendered a frame.
+  above. **No Blender job has been run on 0.3.0 yet.** Most edits to the skills remove steps rather than add them, but
+  two things are new code that has not rendered a frame: the world reset in the always-loaded execution skill, and the
+  seven `kb` skills that were rewritten from Node scripts into MCP steps.
 - CI on Linux, macOS and Windows, and the extension install into Blender 4.2.0 on Linux. The workflows were changed
   for 0.3.0 and have not run yet.
 
@@ -459,9 +466,9 @@ through [SECURITY.md](SECURITY.md).
 ## Credits
 
 The 3D skills are the work of their authors: RobLe3 (cc-blender-skill), Gaius114 (blender-claude-mcp), jithinolickal
-(blender) and newo-ether (blender-mcp, a fork of ahujasid's original server). They published them under licenses that
-let this project include and adapt them, and the library would not exist without them. Earlier versions also pointed
-to kevinbadi's blender-skills, which showed what product camera moves and studio helpers should cover.
+(blender), newo-ether (blender-mcp, a fork of ahujasid's original server) and kevinbadi (blender-skills). The first
+four published them under licenses that let this project include and adapt them; kevinbadi's are here by permission.
+The library would not exist without them.
 
 The rooftop study uses CC0 models and textures from [Poly Haven](https://polyhaven.com). In the demo video, the music
 is by Sascha Ende at [ende.app](https://ende.app) ("Happy Beats / Business Moves", vol. 12, CC BY 4.0) and the sound
@@ -469,6 +476,8 @@ effects are CC0 by Kenney and unicae_games. The video was edited with HyperFrame
 
 ## License
 
-This repository is MIT licensed ([LICENSE](LICENSE)). The libraries under `library/` keep the licenses their authors
-chose (three MIT, one Apache-2.0); each license file sits next to its library, and [THIRD_PARTY.md](THIRD_PARTY.md)
-lists origins, commits and what was changed.
+This repository is MIT licensed ([LICENSE](LICENSE)), **except `library/kb`**, which is not under an open license: its
+author publishes none, it is included by permission given privately to the maintainer, and the MIT license gives you no
+rights to it. The other libraries under `library/` keep the licenses their authors chose (three MIT, one Apache-2.0).
+Each folder has its license file or notice next to it, and [THIRD_PARTY.md](THIRD_PARTY.md) lists origins, commits and
+what was changed.

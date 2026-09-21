@@ -10,7 +10,7 @@ The user's request: $ARGUMENTS
 
 If the request is empty, ask what they want to build before doing anything else.
 
-The 3D skills live in `library/`: four skill libraries by different authors,
+The 3D skills live in `library/`: five skill libraries by different authors,
 kept in this repository, security-reviewed and checksummed. They overlap (two
 ship a `blender-lighting`), were written for different MCP servers, and one is
 in Italian. The registry settles all of that: one provider per capability, one
@@ -90,6 +90,7 @@ directly (`-c materials lighting`). Combining and tie-breaks:
 
 ```bash
 uv run "H/scripts/harness.py" resolve -w <workflow> -p <profile>
+uv run "H/scripts/harness.py" resolve -w product -p standard --variant camera-animation=perfect-loop
 uv run "H/scripts/harness.py" resolve -w modeling -p fast --add architecture
 uv run "H/scripts/harness.py" resolve -c materials lighting -p fast
 ```
@@ -176,7 +177,10 @@ with these adjustments. The load plan repeats the ones that apply.
   unless the user asked for exactly that. Delete only what this job created, and
   never by name prefix. Reuse a material, image, camera, light or World by name
   only if this job made it; otherwise create a new one under a job-specific
-  name. Apply modifiers and transforms on a duplicate when the mesh is not
+  name. The MCP server's HDRI download rebuilds the first World in the file in
+  place: in a scene that is not yours, copy `scene.world` first
+  (`keep = scene.world.copy(); keep.use_fake_user = True`) so it can be given
+  back. Apply modifiers and transforms on a duplicate when the mesh is not
   yours. Report every scene-wide setting you change in an existing scene
   (engine, samples, frame range, fps, colour management), and leave Blender's
   preferences alone.
@@ -194,11 +198,12 @@ with these adjustments. The load plan repeats the ones that apply.
   Windows. Use the absolute path of the job folder under `output/` for every
   render, export and intermediate file, and never write next to the user's own
   files.
-- **Keys and paid services.** Some MCP tools call paid services (Hyper3D,
-  Hunyuan3D, Sketchfab). Use them only when the user asked for that service and
+- **Keys and paid services.** Some skills and MCP tools call paid services
+  (Meshy, Hyper3D, Hunyuan3D, Sketchfab). Use them only when the user asked for that service and
   it is already configured. Never ask for a key in chat and never write one to a file.
-  If it is missing, skip the stage and say so. Before an image-conditioned
-  generation starts, say which reference images will be uploaded.
+  If it is missing, skip the stage and say so. Never look for a key in memory,
+  notes or project files. Before an image-conditioned generation starts, say
+  which reference images will be uploaded.
 - **A saved .blend can carry the user's API keys.** The MCP add-on copies the
   Hyper3D, Sketchfab and Hunyuan3D keys onto every scene, and Blender writes
   them into the file in plain text. Before saving a .blend the user will share,

@@ -175,6 +175,13 @@ def cmd_verify(reg: Registry, args) -> int:
     for key, lib in reg.libraries.items():
         if lib.get("dialect") not in reg.mcp["dialects"]:
             r.line("FAIL", f"library {key}: unknown dialect '{lib.get('dialect')}'")
+        if lib.get("license") == "permission":  # not an open license: say on what basis the files are here, every time
+            if not lib.get("license_note"):
+                r.line("FAIL", f"library {key}: license is 'permission' but no license_note says who gave it and what it covers")
+            else:
+                r.line("INFO", f"library {key}: {' '.join(lib['license_note'].split())}")
+        elif not lib.get("license") or lib["license"] == "NONE":
+            r.line("FAIL", f"library {key}: no license recorded; only vendor what a license or a permission lets you copy")
         if not present[key]:
             r.line("FAIL", f"library {key}: {rel(LIB.relative_to(ROOT))}/{key} is missing or empty - restore it from git, or reinstall the plugin")
         elif not (LIB / key / "LICENSE").is_file():  # a vendored library ships with the terms it was published under
@@ -701,7 +708,7 @@ AUDIT = {
     # zero-width and bidirectional controls, Unicode tag characters, and long base64-looking runs
     "hidden or encoded text": r"[​-‏‪-‮⁠-⁤⁦-⁩﻿\U000e0000-\U000e007f]|[A-Za-z0-9+/]{120,}={0,2}",
 }
-AUDIT_EXT = {".md", ".py", ".js", ".mjs", ".ts", ".sh", ".ps1", ".json", ".yaml", ".yml", ".toml", ".txt"}
+AUDIT_EXT = {".md", ".py", ".js", ".mjs", ".ts", ".sh", ".ps1", ".json", ".yaml", ".yml", ".toml", ".txt", ".html", ".htm", ".svg"}
 
 
 def cmd_audit(reg: Registry, args) -> int:
