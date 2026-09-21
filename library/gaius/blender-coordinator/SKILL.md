@@ -51,11 +51,7 @@ UTENTE: "voglio creare X"
         ├─► STEP 4: pianifica materiali e scena
         │     Materiali condivisi? Luci appropriate?
         │
-        ├─► STEP 5: produci build_plan
-        │
-        └─► STEP 5b: GATE DI PIANO (plan_validator) — OBBLIGATORIO
-              plan_validator.validate(Plan) deve PASSARE
-              → solo allora passa alla skill per l'esecuzione
+        └─► STEP 5: produci build_plan
 ```
 
 ---
@@ -65,7 +61,6 @@ UTENTE: "voglio creare X"
 | Tipo di geometria / richiesta | Skill da invocare |
 |-------------------------------|-------------------|
 | Oggetti rigidi, architettura, mobili, prodotti | **blender-arch** |
-| Oggetto manifatturiero **panelizzato + cuciture** (scarpa, stivale, borsa, imbottito, scocca, guanto) | **blender-arch** → `assembly_kernel` |
 | Strutture biologiche (cuore, vasi, DNA) | **blender-procedural** |
 | Tubi, cavi, pipe lungo una curva 3D | **blender-procedural** |
 | Eliche, strutture ripetitive su spine | **blender-procedural** |
@@ -216,7 +211,6 @@ build_shell  build_vessel              arch / lathe    sculpt
 | Spine + waypoint discreti (bambù, tubatura) | state_machine + fillet | procedural |
 | Biforcazioni / albero vascolare | grafo (MST) + build_vessel | procedural |
 | Box/cylinder/cone con modificatori | CUBE/CYL + bevel/boolean | arch |
-| Oggetto fatto di **pannelli cuciti** (calzatura, borsa, imbottito, scocca) | `assembly_kernel`: pannelli su master/last + **SeamCurve/JunctionPoint condivisi** | arch |
 | Forma libera senza asse (frutta, roccia) | UV_SPHERE + sculpt | sculpt |
 | Ripetizione su superficie | scatter / array | geonodes |
 | Deformazione animata | armature + skin | rig |
@@ -228,19 +222,8 @@ build_shell  build_vessel              arch / lathe    sculpt
 2. Animazione richiesta?   → rig batte tutto il resto
 3. Forma organica pura?    → sculpt batte arch
 4. Scatter/ripetizione?    → geonodes batte arch (array)
-5. PANELIZZATO + cuciture? → arch via assembly_kernel  [GATED, vedi sotto]
-6. Default (forma rigida)  → arch
+5. Default (forma rigida)  → arch
 ```
-
-> **Gate regola 5 — quando (e SOLO quando) usare `assembly_kernel`:**
-> l'oggetto è *costruito da pannelli piatti/curvi uniti da cuciture*
-> (calzature, borse, imbottiti, scocche, guanti). NON è una forma organica
-> a superficie unica (→ sculpt/procedural) né una primitiva con modificatori
-> (→ arch normale) né un tubo a spine (→ procedural). Se panelizzato+cuciture:
-> blender-arch DEVE usare il paradigma `assembly_kernel` (pannelli su un
-> master/last + `SeamCurve`/`JunctionPoint` **condivisi**), **MAI** un loft
-> o boolean singolo "tutto in uno" — è la causa-radice del fallimento
-> "calzino" (vedi sezione dedicata in blender-arch).
 
 ---
 
@@ -846,68 +829,6 @@ build_plan = {
 
 ---
 
-## STEP 5b — GATE DI PIANO (`plan_validator`) — OBBLIGATORIO
-
-> **Regola d'oro:** un `build_plan` multi-parte **NON viene mai dispacciato
-> alle skill esecutive** finché la sua decomposizione non passa
-> `plan_validator.validate()`. È l'analogo, a livello di *pianificazione*,
-> del gate geometrico `assembly_kernel.validate()` (1 componente /
-> 0 non-manifold) che blender-arch applica *dopo*. Pipeline a 2 gate:
-> piano sano **prima**, geometria sana **dopo**.
-
-**Quando:** oggetti **multi-parte** (≥2 parti / ≥1 cucitura). Per un
-oggetto banale mono-metodo mono-parte (sfera, tazza) il gate è un no-op
-(nessun connettore → passa) — nessuna burocrazia aggiunta.
-
-**Cosa fare:** esprimere il `build_plan` come `Plan` e validarlo.
-```python
-import sys; sys.path.insert(0, r"D:\blender-claude\kernel")
-import plan_validator as pv
-import importlib; importlib.reload(pv)
-
-P = pv.Plan("oggetto")
-P.part("oggetto")
-P.part("upper", "oggetto"); P.part("bottom", "oggetto")
-# connettori = cut-line, POSSEDUTI dal padre coordinatore (non da una foglia)
-P.connector("s_vq", "seam", "upper")
-P.connector("s_feather", "seam", "oggetto")   # fra subtree (padre comune)
-# interfacce REALI del target (da blender-research / reference): il
-# validator verifica la consistenza dato questo set, NON lo inventa
-P.real_interfaces = {"s_vq", "s_feather", ...}
-# foglie: metodo dalla libreria + connettori sul BORDO
-P.part("vamp", "upper", "assembly_kernel", ["s_vq", "s_feather"])
-...
-rep = pv.validate(P)
-assert rep["PASS"], rep["rules"]      # GATE: blocca qui se fallisce
-```
-
-**Le 6 regole dure** (se una fallisce → NON dispacciare, ri-decomponi):
-- **R1 ownership** — ogni connettore è posseduto da una parte *interna*
-  (il padre coordinatore), mai da una foglia.
-- **R2 shared** — seam/junction vincolati da **≥2** parti; boundary da 1.
-  (<2 = sorgente non sincronizzata = bug "throat≠lacci".)
-- **R3 method** — una foglia che onora un seam/junction deve usare un
-  metodo a *bordo-esatto* (arch / procedural / assembly_kernel / stitch /
-  lathe). **sculpt / geonodes NON possono** (displacement/scatter).
-- **R4 referential** — albero/connettori coerenti.
-- **R5a TERMINAZIONE** — un'interfaccia reale che **cade dentro una
-  foglia** = sotto-decomposizione (il "calzino"): decomporre lì.
-- **R5b PARTIZIONE** — un taglio fra fratelli che **non** è
-  un'interfaccia reale = sovra-decomposizione (cucitura inventata).
-
-**Criterio di decomposizione (R5a/R5b operativo):** un connettore =
-**una discontinuità nella RICETTA** — cucitura fisica, cambio materiale,
-cambio regime di curvatura (piatto↔curvo), *cambio di metodo* sono la
-stessa cosa. Si taglia **esattamente** alle discontinuità di ricetta;
-ci si ferma dove la ricetta è continua sull'intera parte. Le interfacce
-reali si ricavano da blender-research/reference (es. lista pezzi del
-bootmaking: vamp|quarter, toe-cap, throat, feather/topline/backstay).
-
-Modulo: `D:\blender-claude\kernel\plan_validator.py` (Python puro, no
-Blender). Fondamenti e prove: memoria di progetto `decomposition_paradigm.md`.
-
----
-
 ## ESEMPIO COMPLETO — Tazza Espresso
 
 ```python
@@ -1018,7 +939,6 @@ build_plan = {
 2. **Topological sort sempre** — mai assumere l'ordine delle parti, calcolarlo
 3. **Tecnica esplicita** — la skill esecutiva non sceglie la tecnica, il coordinator la decide nel build_plan
 4. **Complexity gating** — se complexity=complex, suggerisci iterazioni incrementali (crea → render → verifica → continua)
-5. **Gate di piano obbligatorio** — un build_plan multi-parte NON si dispaccia mai senza che `plan_validator.validate()` dia PASS (STEP 5b). Se fallisce: ri-decomponi, non modellare
 
 ### Method selection
 5. **Decision tree prima della tecnica** — verifica spine → sezione variabile → influenze globali prima di scegliere LATHE o build_vessel

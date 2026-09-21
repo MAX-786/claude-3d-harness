@@ -30,7 +30,7 @@ Before any wireframe work, verify the environment:
    ```
    python3 -c "import cv2, numpy, scipy" 2>&1
    ```
-   If it errors, run `pip install opencv-python numpy scipy Pillow` (or instruct the user to).
+   If it errors, install nothing into the system Python. Run the analyzer as `uv run --with opencv-python --with numpy --with scipy --with Pillow python <script> ...`, which resolves the packages in a throwaway environment.
 
 3. **Image input**. Confirm the user provided at least one PNG. Reasonable bounds: ≥ 400×400 px, black-on-white or white-on-black line art.
 
@@ -92,7 +92,7 @@ The script outputs JSON with this shape:
 **Tuning RDP epsilon** (only if defaults fail):
 - Output has too few/jagged contours → lower epsilon to 1.0–1.5.
 - Output has too many noisy points → raise epsilon to 3.0–4.0.
-- Pass via `--rdp-epsilon` (or edit the call in the script).
+- Pass via `--rdp-epsilon`.
 
 Read the JSON with `Read`. Do not pass huge JSON blobs to Blender — extract what you need first.
 

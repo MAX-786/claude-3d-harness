@@ -741,9 +741,7 @@ rb.enabled             # bool
 
 ---
 
-## COORDINATOR ROUTING — Aggiunta alla tabella
-
-Da aggiungere alla tabella ROUTING SKILL in blender-coordinator:
+## ROUTING — Quando usare questa skill
 
 ```
 | Oggetto che cade/rimbalza senza deformarsi | blender-physics (Rigid Body) |

@@ -44,7 +44,7 @@ result = {"ok": True}
 mcp__Blender__get_screenshot_of_window_as_image()
 
 # Render su file e poi Read per analisi visiva
-mcp__Blender__render_viewport_to_path(output_path="C:/Users/josia/Downloads/preview.png")
+mcp__Blender__render_viewport_to_path(output_path="<JOB_DIR>/preview.png")
 ```
 
 ---
@@ -551,31 +551,6 @@ def differential_growth_step(obj, growth_rate=0.02, target_edge_len=None,
     bm.to_mesh(obj.data)
     bm.free()
     obj.data.update()
-```
-
----
-
-## USARE lib/ DA blender_ragionamento
-
-```python
-# Carica la libreria nelle sessioni Blender
-LIB_PATH = r"D:\blender_ragionamento"
-
-import sys, importlib
-if LIB_PATH not in sys.path:
-    sys.path.insert(0, LIB_PATH)
-
-import lib; importlib.reload(lib)
-
-# Accesso alle funzioni
-# lib.build_shell(lib.HEART_FRAMES, lib.HEART_TOTAL_HEIGHT_CM)
-# lib.build_vessel([Vector(...)...], radius=0.02)
-# lib.make_mat("Miocardio", color=(0.65, 0.05, 0.05))
-# lib.cinematic_setup()
-# lib.HEART_PARAMS   — dizionario misure ASE adulto
-# lib.HEART_PARAMS_HYPERTROPHIC  — variante ipertrofica
-# lib.HEART_PARAMS_DILATED       — variante dilatata
-# lib.CUP_OUTER_FRAMES / CUP_INNER_FRAMES — tazza espresso
 ```
 
 ---
@@ -1103,7 +1078,6 @@ def murray_radius(r_parent, ratio=0.5):
 | `sezione personalizzata / manico ovale` | build_vessel_custom_section |
 | `crescita / organico / corrugato` | differential_growth_step (iterato) |
 | `cavità / camera / vuoto interno` | add_cavity + assign_cavity_material |
-| `lib / blender_ragionamento` | Carica con sys.path + importlib.reload |
 | `propagazione matriciale / L-system / vertebra` | propagate_matrix + reortho_matrix (Sez. 7) |
 | `tropismo / gravitropismo / fototropismo / vite` | vector_blend_step + influenza_fn (Sez. 10) |
 | `rumore organico / sinuoso / corona sinuosa` | get_noise_vector con mathutils.noise (Sez. 10) |

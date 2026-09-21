@@ -57,7 +57,9 @@ def main():
     ap=argparse.ArgumentParser()
     ap.add_argument('--objects', nargs='*', help='Object names to audit; default: all AVATAR_BASE__/SIDE_BACK__ objects')
     ap.add_argument('--out')
-    args=ap.parse_args()
+    # Blender's own arguments come first; ours follow '--'. Parsing all of sys.argv would raise SystemExit
+    # on Blender's flags, and an uncaught SystemExit inside a live session can close it.
+    args=ap.parse_args(sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else [])
     if args.objects:
         objs=[bpy.data.objects[n] for n in args.objects if n in bpy.data.objects]
     else:

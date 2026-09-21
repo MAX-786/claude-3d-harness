@@ -3,7 +3,7 @@ description: >
   Skill avanzata per modellazione 3D in Blender — architettura, oggetti,
   prodotti, mobili, veicoli. Tecnica professionale: bevel, SubSurf, Boolean,
   bmesh, Array, Curve, Solidify, smooth shading. Visual loop con MCP connector
-  (porta 9876, predefinito) o HTTP fallback (porta 7234): esegui → render → analizza → itera.
+  (porta 9876): esegui → render → analizza → itera.
 allowed-tools:
   - Bash
   - Read
@@ -26,7 +26,7 @@ Ricevi una richiesta (`$ARGUMENTS`) e produci geometria di qualità professional
 
 ---
 
-## Connessione — MCP (predefinito) + HTTP (fallback)
+## Connessione — MCP
 
 ### ✅ Metodo 1 — MCP Tool (PREFERITO, porta 9876)
 Usa direttamente il tool `mcp__Blender__execute_blender_code`:
@@ -42,34 +42,10 @@ result = {"ok": True, "verts": len(me.vertices)}
 mcp__Blender__get_screenshot_of_window_as_image()
 
 # Render su file e visualizza
-mcp__Blender__render_viewport_to_path(output_path="C:/Users/josia/Downloads/out.png")
+mcp__Blender__render_viewport_to_path(output_path="<JOB_DIR>/out.png")
 
 # Lista oggetti in scena
 mcp__Blender__get_objects_summary()
-```
-
-**Avvio server MCP in Blender** (se non ancora attivo):
-```python
-# Da eseguire via HTTP una tantum all'inizio della sessione
-import bpy
-bpy.context.preferences.system.use_online_access = True
-bpy.ops.blmcp.server_start()
-# Dopo questo, usa i tool MCP direttamente senza HTTP
-```
-
-### ⚠️ Metodo 2 — HTTP Fallback (porta 7234, solo se MCP non disponibile)
-```python
-import urllib.request, json
-
-BLENDER_URL = "http://localhost:7234"
-
-def blender(code, timeout=60):
-    data = json.dumps({"code": code, "timeout": timeout}).encode()
-    req  = urllib.request.Request(f"{BLENDER_URL}/execute", data=data,
-                                  headers={"Content-Type": "application/json"})
-    r = json.loads(urllib.request.urlopen(req, timeout=timeout + 10).read())
-    if "error" in r: raise RuntimeError(r["error"])
-    return r.get("ok")
 ```
 
 ---
@@ -95,7 +71,7 @@ try:    sc.render.engine = "BLENDER_EEVEE_NEXT"
 except: sc.render.engine = "BLENDER_EEVEE"
 sc.render.resolution_x = 1280
 sc.render.resolution_y = 720
-sc.render.filepath = "C:/Users/josia/Downloads/render_final.png"
+sc.render.filepath = "<JOB_DIR>/render_final.png"
 sc.render.use_compositing = False
 sc.view_settings.view_transform = "Filmic"
 sc.view_settings.look = "Medium High Contrast"
@@ -103,21 +79,7 @@ bpy.ops.render.render(write_still=True)
 result = {"saved": sc.render.filepath}
 """
 # mcp__Blender__execute_blender_code(code=render_code)
-# poi: Read("C:/Users/josia/Downloads/render_final.png")
-```
-
----
-
-## Pulizia scena
-```python
-CLEAR_SCENE = '''
-import bpy
-bpy.ops.object.select_all(action='SELECT')
-bpy.ops.object.delete(use_global=False)
-for m in bpy.data.meshes:    bpy.data.meshes.remove(m)
-for m in bpy.data.materials: bpy.data.materials.remove(m)
-for c in bpy.data.collections: bpy.data.collections.remove(c)
-'''
+# poi: Read("<JOB_DIR>/render_final.png")
 ```
 
 ---
@@ -605,69 +567,6 @@ rim_world = local_to_world(cup, (0.031, 0, 0.058))
 # "Dato un punto world, dove è nelle coordinate locali del piattino?"
 p_local = world_to_local(saucer, rim_world)
 ```
-
----
-
-## PARADIGMA PANNELLI / CUCITURE — `assembly_kernel`
-
-> **Quando (GATE):** oggetto manifatturiero **costruito da pannelli
-> piatti/curvi uniti da cuciture** — calzature, borse, imbottiti, scocche,
-> guanti. **Quando NON:** forma organica a superficie unica (→ sculpt /
-> procedural), primitiva con modificatori (→ sezioni sopra), tubo/spine
-> (→ procedural). Se il gate è soddisfatto, **NON modellare l'oggetto come
-> un loft o boolean singolo "tutto in uno"**: è la causa-radice del
-> fallimento "calzino" (superficie a calzino senza struttura, cuciture
-> disallineate, sorgenti non sincronizzate). Si usa il kernel.
-
-**Principio (3 livelli ORTOGONALI, validati con metriche):**
-1. **Placement** = 1 matrice **rigida** SE(3) (`Frame`); la *dimensione* sta
-   nel locale, MAI scala non uniforme nella matrice.
-2. **Cuciture** = entità **condivise** possedute dall'assieme:
-   `SeamCurve` (1-D) e `JunctionPoint` (0-D, dove ≥2 seam convergono).
-   Ogni pannello adiacente **rigenera il bordo SU** il connettore condiviso
-   — non lo autora per conto suo (questo elimina i gap per costruzione).
-3. **Forma interna / curvatura** = un **campo di frame** anti-drift
-   (`parallel_transport`) lungo una spine locale. Curvatura forte ⇒
-   obbligatorio il frame-field; un frame singolo regge solo il ~piatto.
-   Una forma complessa **emerge** dalla composizione di pochi pezzi curvi
-   semplici, NON da un colpo solo.
-
-**Modulo:** `D:\blender-claude\kernel\assembly_kernel.py` (Blender 5.x).
-```python
-import sys; sys.path.insert(0, r"D:\blender-claude\kernel")
-import assembly_kernel as ak
-import importlib; importlib.reload(ak)
-
-A = ak.Assembly("Stivale")              # nome → prefisso "Asm_" (bbox-frame)
-# 1) base globale = un "last" (forma del piede) come master surface
-#    last(t,a) -> Vector globale  (t lungo, a sezione)
-# 2) cuciture REALI del bootmaking come connettori CONDIVISI:
-seam_vq = A.seam("vamp_quarter", [last(0.42, a) for a in angoli])
-jp_thr  = A.junction("throat", last(0.50, 0.0))
-# 3) pannelli: bordi/angoli VINCOLATI ai connettori condivisi
-A.panel_on_master(master_vamp, NR, NT, edge_t0=seam_vq, corner=jp_thr,
-                  material=(0.05,0.03,0.02))           # mosaico per-pezzo
-A.swept_piece(frame, spine_locale, half_w, NA,
-              start_seam=seam_vq, material=(...))       # pezzo curvo
-A.finalize(weld=True)                                   # 1 mesh, salda condivisi
-m = A.validate()                                        # GATE oggettivo
-assert m["components"] == 1 and m["nonmanifold"] == 0
-ak.studio_setup()                                       # preset render leggibile
-```
-
-**Disciplina imposta dall'API:** i builder accettano *solo* `SeamCurve`/
-`JunctionPoint` per i bordi/angoli vincolati. Se ti accorgi di calcolare un
-bordo di cucitura "a mano" o di unire pezzi con boolean → stai sbagliando
-paradigma: definisci una `SeamCurve` condivisa e lega entrambi i pannelli.
-
-**Gate di consegna:** un assieme non è "fatto" finché `validate()` non dà
-`components == 1`, `nonmanifold == 0` e i `boundary_edges` attesi (solo i
-bordi realmente aperti). Renderizza sempre con `ak.studio_setup()` +
-bbox-framing sugli oggetti `Asm_*` (preset leggibile fissato).
-
-Fondamenti e prove: vedi memoria di progetto `assembly_kernel.md` /
-`stitch_paradigm.md`. Mappa bootmaking → connettori: vamp|quarter, toe-cap,
-throat (JunctionPoint), feather/linea di montaggio, topline, backstay.
 
 ---
 

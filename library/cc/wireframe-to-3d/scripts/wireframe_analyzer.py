@@ -345,22 +345,32 @@ class WireframeAnalyzer:
 
 def main():
     """Example usage."""
-    import sys
+    import argparse
 
-    if len(sys.argv) < 2:
-        print("Usage: python wireframe_analyzer.py <image.png> [output.json]")
-        sys.exit(1)
+    ap = argparse.ArgumentParser(description="Extract contours and Bezier curves from a wireframe drawing.")
+    ap.add_argument("image")
+    ap.add_argument("output", nargs="?", help="default: <image name>_analyzed.json next to the image")
+    ap.add_argument("--gaussian-kernel", type=int, default=5)
+    ap.add_argument("--canny-t1", type=int, default=50)
+    ap.add_argument("--canny-t2", type=int, default=150)
+    ap.add_argument("--rdp-epsilon", type=float, default=2.0)
+    ap.add_argument("--min-contour-area", type=float, default=100.0)
+    args = ap.parse_args()
 
-    image_path = sys.argv[1]
-    output_path = sys.argv[2] if len(sys.argv) > 2 else image_path.replace('.png', '_analyzed.json')
+    image_path = args.image
+    # Built from the stem, so it can never be the image itself (the old '.png' replace left
+    # 'front.PNG' or 'front.jpg' unchanged and the JSON was written over the drawing).
+    output_path = args.output or str(Path(image_path).with_name(Path(image_path).stem + '_analyzed.json'))
+    if Path(output_path).resolve() == Path(image_path).resolve():
+        ap.error("the output path is the input image")
 
     analyzer = WireframeAnalyzer(image_path, verbose=True)
     result = analyzer.process(
-        gaussian_kernel=5,
-        canny_threshold1=50,
-        canny_threshold2=150,
-        rdp_epsilon=2.0,
-        min_contour_area=100.0,
+        gaussian_kernel=args.gaussian_kernel,
+        canny_threshold1=args.canny_t1,
+        canny_threshold2=args.canny_t2,
+        rdp_epsilon=args.rdp_epsilon,
+        min_contour_area=args.min_contour_area,
     )
 
     print(f"\nExtracted {result['metadata']['num_contours']} contours")
