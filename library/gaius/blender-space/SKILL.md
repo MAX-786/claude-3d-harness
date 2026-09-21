@@ -53,17 +53,7 @@ offset = get_world_center(obj).z - obj.location.z
 ## FUNZIONI DI DEBUG SPAZIALE
 
 ```python
-def blender(code, timeout=30):
-    import urllib.request, json
-    data = json.dumps({"code": code, "timeout": timeout}).encode()
-    req  = urllib.request.Request("http://localhost:7234/execute", data=data,
-                                  headers={"Content-Type": "application/json"})
-    r = json.loads(urllib.request.urlopen(req, timeout=timeout+10).read())
-    if "error" in r: print("ERR:", r["error"][:500]); return None
-    return r.get("ok")
-
 # ── MISURA POSIZIONE REALE (WORLD SPACE) ────────────────────────────────────
-MEASURE = """
 import bpy
 
 def world_bounds(obj):
@@ -102,7 +92,6 @@ for obj in bpy.data.objects:
             'origin_offset_z': round(b['origin_offset'][2],3)  # chiave! se ≠0 c'è mismatch
         }
 result = info
-"""
 ```
 
 ---

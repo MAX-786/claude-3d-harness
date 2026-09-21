@@ -103,7 +103,7 @@ def main():
         m = threshold_inside(bgr, alpha, base, part)
         if part.get('min_area') and int((m > 0).sum()) < int(part['min_area']):
             m = base
-        mask_path = out / f"{name}_mask.png"
+        mask_path = out / f"{Path(str(name)).name}_mask.png"  # a part name must not climb out of --out-dir
         cv2.imwrite(str(mask_path), m)
         parts.append({
             'name': name,

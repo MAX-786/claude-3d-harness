@@ -622,10 +622,6 @@ import bpy
 import json
 
 def full_workflow(json_path: str, glb_output: str):
-    # Clear scene
-    bpy.ops.object.select_all(action='SELECT')
-    bpy.ops.object.delete()
-    
     # Load analyzer output
     with open(json_path) as f:
         data = json.load(f)

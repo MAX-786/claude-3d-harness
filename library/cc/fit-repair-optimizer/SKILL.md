@@ -1,6 +1,6 @@
 ---
 name: fit-repair-optimizer
-description: Turn multiview fit reports into a sequential or parallel repair queue for aligning Blender products to source-of-truth templates. Use after validation shows disalignment, when the agent must iteratively fix wireframe, texture, lighting, or projection mismatches, and when skill gaps should trigger self-refinement before another rebuild.
+description: Turn multiview fit reports into a sequential or parallel repair queue for aligning Blender products to source-of-truth templates. Use after validation shows disalignment, when the agent must iteratively fix wireframe, texture, lighting, or projection mismatches, and when a recurring failure should stop the rebuild loop for a diagnosis.
 when_to_use: Iterative source-of-truth alignment repair, choosing sequential vs parallel correction order, generating fit repair queues, stopping on contradictory templates, or coordinating geometry/UV/lighting fixes from validation reports.
 allowed-tools: Read Bash Glob Grep mcp__blender__execute_blender_code mcp__blender__get_scene_info mcp__blender__get_object_info
 ---
@@ -68,11 +68,11 @@ Each repair item must include:
 
 ## Skill-gap rule
 
-If the same failure recurs twice, stop and invoke `quality-refinement-autoloop` before another rebuild. The autoloop must capture evidence, diagnose the missing method, sanitize the lesson into generic publishable guidance, patch the relevant skill(s), validate the skill stack, then return here with a new repair queue. Common routing:
+If the same failure recurs twice, stop and invoke `quality-refinement-autoloop` before another rebuild. The autoloop must capture evidence, diagnose the missing method and record the lesson, then return here with a new repair queue. It does not edit skill files. Common routing:
 
 - geometry mismatch → `contour-to-mesh`, `orthographic-registration`, or this skill;
 - UV/texture mismatch → `atlas-uv-fitting`;
-- lighting mismatch → add/look-calibrate guidance to `blender-lighting` or a look-calibration skill;
+- lighting mismatch → `reference-look-calibration`, then `blender-lighting`;
 - validation mismatch → `multiview-fit-loop` / `reference-analysis-validator`.
 
 ## Output

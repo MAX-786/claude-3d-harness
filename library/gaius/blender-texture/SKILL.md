@@ -27,25 +27,13 @@ Ricevi una richiesta (`$ARGUMENTS`) e produci materiali realistici di qualità p
 
 ---
 
-## Connessione — MCP (predefinito) + HTTP (fallback)
+## Connessione — MCP
 
 **MCP (porta 9876 — PREFERITO):**
 ```python
 mcp__Blender__execute_blender_code(code="import bpy\n# ...\nresult={'ok':True}")
 mcp__Blender__get_screenshot_of_window_as_image()
-mcp__Blender__render_viewport_to_path(output_path="C:/Users/josia/Downloads/out.png")
-```
-
-**HTTP fallback (porta 7234):**
-```python
-import urllib.request, json
-def blender(code, timeout=60):
-    data = json.dumps({"code": code, "timeout": timeout}).encode()
-    req  = urllib.request.Request("http://localhost:7234/execute", data=data,
-                                  headers={"Content-Type": "application/json"})
-    r = json.loads(urllib.request.urlopen(req, timeout=timeout+10).read())
-    if "error" in r: raise RuntimeError(r["error"])
-    return r.get("ok")
+mcp__Blender__render_viewport_to_path(output_path="<JOB_DIR>/out.png")
 ```
 
 ---
@@ -68,8 +56,6 @@ def link(links, from_node, from_sock, to_node, to_sock):
 
 def new_mat(name):
     """Crea materiale pulito con use_nodes=True, nodes svuotati."""
-    if name in bpy.data.materials:
-        bpy.data.materials.remove(bpy.data.materials[name])
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     mat.node_tree.nodes.clear()
@@ -635,7 +621,7 @@ def bake_texture(obj_name, bake_type="AO",
 
 ### 4.2 Bake AO completo (pattern consigliato)
 ```python
-def full_ao_bake(obj_name, res=2048, save_path="D:/output/ao.png"):
+def full_ao_bake(obj_name, res=2048, save_path=None):
     """AO bake con impostazioni ottimizzate, salvataggio automatico."""
     sc = bpy.context.scene
     sc.render.engine = "CYCLES"
@@ -650,7 +636,7 @@ def full_ao_bake(obj_name, res=2048, save_path="D:/output/ao.png"):
 ### 4.3 Bake Normal Map (high-poly → low-poly)
 ```python
 def bake_normal_hp_to_lp(high_name, low_name,
-                          res=2048, extrusion=0.02, save_path="D:/output/normal.png"):
+                          res=2048, extrusion=0.02, save_path=None):
     """
     Bake normal map da high-poly a low-poly.
     Estrusion: distanza di offset per il ray (default 2cm in BU).

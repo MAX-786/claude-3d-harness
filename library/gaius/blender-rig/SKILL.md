@@ -35,7 +35,7 @@ result = {"ok": True}
 """)
 
 mcp__Blender__get_screenshot_of_window_as_image()
-mcp__Blender__render_viewport_to_path(output_path="C:/Users/josia/Downloads/rig_preview.png")
+mcp__Blender__render_viewport_to_path(output_path="<JOB_DIR>/rig_preview.png")
 ```
 
 ---

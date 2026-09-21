@@ -39,8 +39,8 @@ def main():
         'primary_failure':ranked[0],
         'failure_dimensions':ranked,
         'candidate_skills':sorted({s for d in ranked for s in SKILL_HINTS[d]}),
-        'phases':['freeze_baseline','capture_evidence','diagnose','decide_skill_gap','sanitize_lesson','patch_skill_if_needed','validate_skill','repair_product','release_prep_if_requested'],
-        'hard_gates':['do_not_rebuild_before_skill_gap_decision','do_not_publish_project_specific_terms','run_validation_report_before_final']
+        'phases':['freeze_baseline','capture_evidence','diagnose','decide_skill_gap','record_lesson','repair_product'],
+        'hard_gates':['do_not_rebuild_before_skill_gap_decision','do_not_edit_skill_files','run_validation_report_before_final']
     }
     txt=json.dumps(plan,indent=2)
     if args.out: open(args.out,'w').write(txt)

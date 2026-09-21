@@ -13,7 +13,7 @@ Turn plain-English requests into Blender work. You are the conductor: read the r
 
 For complex tasks that trigger multiple Blender skills, especially reference/template/brand work, load `blender-skill-harmonizer` before choosing the execution order. It owns precedence, handoff artifacts, and conflict policy.
 
-If the user rejects an output as sub-par, says the same issue is recurring, or asks to improve the skill stack before retrying, load `quality-refinement-autoloop` before further product work. It turns evidence into a sanitized reusable lesson, patches generic skills/docs/versioning when explicitly requested, and only then resumes the Blender repair loop.
+If the user rejects an output as sub-par, says the same issue is recurring, or asks to improve the skill stack before retrying, load `quality-refinement-autoloop` before further product work. It turns evidence into a diagnosis and a recorded lesson, and only then resumes the Blender repair loop.
 
 ## How this skill works
 
@@ -32,11 +32,15 @@ The user speaks in tasks ("render a hero shot of a sword on a stone"); you:
 
 ### World reset (always step 3, before any composition)
 
-Previous tests can leave the scene's world in a broken state — particularly an `Environment Texture` node with `image=None` cascading into Background, which produces a magenta-flooded render. Reset world to a neutral baseline at the start of every scene-build:
+Previous tests can leave the scene's world in a broken state — particularly an `Environment Texture` node with `image=None` cascading into Background, which produces a magenta-flooded render. Give the scene a neutral World of its own at the start of every scene-build. The World that was there is kept, not wiped: it may be the user's HDRI or sky, and other scenes may share it.
 
 ```python
 def reset_world(scene, color=(0.04, 0.04, 0.05, 1.0), strength=0.4):
-    world = scene.world
+    import bpy
+    if scene.world:
+        scene.world.use_fake_user = True  # survives a save even with no scene pointing at it
+    world = bpy.data.worlds.new("WORLD-job")
+    scene.world = world
     world.use_nodes = True
     nodes = world.node_tree.nodes
     for n in list(nodes):
@@ -106,7 +110,7 @@ Before any work, verify:
 2. **Scene state**. `get_scene_info` returns the current objects. Decide:
    - **Empty scene?** → Start fresh; build from primitives.
    - **Existing objects?** → Operate on them; do NOT delete unless asked.
-   - **Default cube only?** → Probably safe to delete (`bpy.ops.object.delete()`).
+   - **Default cube only?** → Probably safe to delete. Remove that one object by name (`bpy.data.objects.remove(bpy.data.objects['Cube'], do_unlink=True)`); `bpy.ops.object.delete()` deletes whatever happens to be selected.
 
 3. **The user's actual request**. If ambiguous, ask one question. Otherwise proceed with sensible defaults.
 
@@ -126,7 +130,7 @@ For each intent the user expresses, load (via `Read`) the matching sub-skill's `
 | "Export as glTF / FBX / OBJ / for web / for Unity" | `blender-export` | Final step |
 | "Set up a scene / production-quality result" | `blender-pro-workflow` | First — guides everything |
 | "I'm new / not sure where to start" | `blender-pro-workflow` | First |
-| "This is sub-par / still wrong / same issue again" | `quality-refinement-autoloop`, then `blender-skill-harmonizer` | First — learn, sanitize, patch, then retry |
+| "This is sub-par / still wrong / same issue again" | `quality-refinement-autoloop`, then `blender-skill-harmonizer` | First — diagnose, record the lesson, then retry |
 | "Match these templates / wireframes / textures exactly" | `blender-skill-harmonizer`, then reference-specific fit skills | First — establish source-of-truth gates |
 
 **Multi-intent example**: "Model a sword with materials, light it dramatically, and export as glTF" →

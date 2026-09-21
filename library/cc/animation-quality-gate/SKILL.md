@@ -26,7 +26,6 @@ If a user calls an animation ugly/bad, stop rebuilding immediately. First:
 - collect preview frames/contact sheet;
 - identify the failed dimension(s);
 - invoke `quality-refinement-autoloop` if the stack lacks a method;
-- add/refine generic skills only after sanitization;
 - only then rebuild the animation.
 
 ## Hard gates

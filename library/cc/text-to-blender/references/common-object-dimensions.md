@@ -250,4 +250,4 @@ POMMEL_RADIUS = 0.028
 
 ## Adding to this list
 
-When the user asks for a subject not listed here, look up the real-world dimensions from a credible source (dimensions.com, Wikipedia, manufacturer specs) BEFORE generating Blender code. Add the new entry here for future sessions if the subject is general (avoid hyper-specific items).
+When the user asks for a subject not listed here, look up the real-world dimensions from a credible source (dimensions.com, Wikipedia, manufacturer specs) BEFORE generating Blender code. Record the dimensions and their source in the job's plan; do not write them into this file.

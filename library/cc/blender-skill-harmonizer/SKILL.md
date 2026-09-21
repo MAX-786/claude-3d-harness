@@ -14,7 +14,7 @@ Use a **Merge → Consistency → Optimize → Store** cycle:
 1. **Merge:** list all triggered skills and their intended outputs.
 2. **Consistency:** detect conflicts in assumptions, coordinate systems, source hierarchy, object naming, or validation gates.
 3. **Optimize:** choose one orchestrator, one source-of-truth policy, and a staged/parallel execution plan.
-4. **Store:** write the chosen plan and durable lessons into project docs/memory.
+4. **Store:** write the chosen plan and durable lessons into `BUILD_NOTES.md` in the job folder.
 
 ## Skill category map
 
@@ -31,7 +31,7 @@ Use a **Merge → Consistency → Optimize → Store** cycle:
 For a task involving references/templates/textures:
 
 1. `blender-skill-harmonizer` — choose the pipeline and conflict policy.
-1a. `quality-refinement-autoloop` — if output is rejected/subpar, freeze product work, diagnose, sanitize/patch generic skill knowledge, validate, then retry.
+1a. `quality-refinement-autoloop` — if output is rejected/subpar, freeze product work, diagnose, record the lesson, then retry.
 2. `reference-analysis-validator` — source manifest and source-of-truth classification.
 3. `orthographic-registration` — view consistency and coordinate contract.
 4. `multiview-constraint-solver` — rigid feasibility and canonical view policy.
@@ -108,4 +108,4 @@ For closed or extruded reference-locked assets, front texture fit is not enough.
 
 ## Quality-refinement autoloop handoff rule
 
-When a user rejects output quality, or repeated failures show missing skill depth, do not continue blind retries. Invoke `quality-refinement-autoloop`: preserve the baseline, capture evidence, classify failure dimension, decide whether existing skills are sufficient, sanitize any new lesson into generic skill guidance, validate the skill stack, then repair the artifact. Publication prep is only done on explicit user request.
+When a user rejects output quality, or repeated failures show missing skill depth, do not continue blind retries. Invoke `quality-refinement-autoloop`: preserve the baseline, capture evidence, classify failure dimension, decide whether existing skills are sufficient, record any new lesson in the job report, then repair the artifact.

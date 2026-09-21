@@ -37,7 +37,7 @@ result = {"ok": True}
 """)
 
 mcp__Blender__get_screenshot_of_window_as_image()
-mcp__Blender__render_viewport_to_path(output_path="C:/Users/josia/Downloads/sculpt.png")
+mcp__Blender__render_viewport_to_path(output_path="<JOB_DIR>/sculpt.png")
 ```
 
 ---
@@ -88,8 +88,6 @@ def sculpt_base_sphere(name="SculptObj", radius=0.12,
     
     IMPORTANTE: usa shade_smooth() e origin_to_geometry subito.
     """
-    bpy.ops.object.select_all(action='SELECT')
-    bpy.ops.object.delete()
     
     bpy.ops.mesh.primitive_uv_sphere_add(
         radius=radius, segments=segments, ring_count=rings,
