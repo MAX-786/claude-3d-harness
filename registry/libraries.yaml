@@ -61,20 +61,19 @@ libraries:
     imported_from: .
     omitted: >-
       README.md, and blender-toolkit/, a copy of another author's project that
-      this library's author cannot give permission for (it needs its own Blender
-      addon and WebSocket bridge, so it was never routed either).
+      this library's author cannot license on their own behalf (it needs its own
+      Blender addon and WebSocket bridge, so it was never routed either).
     changes: >-
       Security fixes after import, listed file by file in docs/security-review.md:
       the seven Node scripts that drove Blender's add-on socket directly were
       removed and their skills rewritten to go through the MCP server; an API
       key is no longer fetched from agent memory; scene wipes and paths on the
       author's machine are gone.
-    license: permission
-    license_note: >-
-      The origin publishes no license. Included on the maintainer's statement
-      that the author gave permission privately; the text is not published. The
-      MIT license of this repository does not cover library/kb: see
-      library/kb/LICENSE before reusing anything from it.
+    license: MIT
+    notes: >-
+      The origin repository ships no LICENSE file. Vendored MIT on the author's
+      statement, given directly to this project's maintainer, that the work is
+      MIT licensed; library/kb/LICENSE carries that text under the author's name.
     dialect: ahujasid
     language: en
     role: Product-shot camera moves, Poly Haven studio helpers, photo-to-3D.

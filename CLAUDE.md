@@ -2,9 +2,11 @@
 
 A harness for building 3D scenes in Blender with Claude Code. The 3D skills
 live in `library/`: five skill libraries, vendored, security-reviewed and
-checksummed. Four are open source; `library/kb` is included by permission. Around them sit the registry that routes between them, the
-workflows, the complexity profiles and the install tooling. Blender is driven
-through one MCP server named `blender`.
+checksummed. Four ship an open license at their origin; `library/kb`'s origin
+has none, so its MIT grant was given directly to the maintainer. Around them
+sit the registry that routes between them, the workflows, the complexity
+profiles and the install tooling. Blender is driven through one MCP server
+named `blender`.
 
 ## When the user asks for anything 3D
 
@@ -69,8 +71,9 @@ the tests on Linux, macOS and Windows. The library follows nobody's
 branch: to take an improvement from a library's origin, port it by hand as a
 skill change (never re-import a folder, which would undo the security fixes).
 
-`library/kb` is not open source. Its origin publishes no license; it is here on
-the maintainer's statement that the author gave permission privately, and the
-MIT license does not cover it (`library/kb/LICENSE`). Do not copy anything else
-from that origin (its `blender-toolkit/` is another author's work), and never
-copy from any source without a license or a permission that allows it.
+`library/kb`'s origin ships no LICENSE file. It is vendored MIT on the author's
+statement, given directly to the maintainer, that the work is MIT licensed
+(`library/kb/LICENSE` carries that text under the author's name). Do not copy
+anything else from that origin (its `blender-toolkit/` is another author's
+work), and never copy from any source without a published license or a clear
+grant that allows it.

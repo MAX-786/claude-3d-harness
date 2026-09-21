@@ -59,7 +59,7 @@ def test_routing_to_an_excluded_skill_fails_verify(reg, capsys):
 def test_every_library_names_its_origin_and_ships_its_license(reg):
     for key, lib in reg.libraries.items():
         assert lib["origin"].startswith("https://") and re.fullmatch(r"[0-9a-f]{40}", lib["imported_at"]), key
-        assert lib["license"] not in ("", "NONE"), f"{key}: vendor only what a license or a permission lets you copy"
+        assert lib["license"] not in ("", "NONE"), f"{key}: vendor only what a license or a clear grant lets you copy"
         assert (harness.LIB / key / "LICENSE").is_file(), key
         if lib["license"] == "permission":  # not an open license: the registry and the folder must both say so
             assert lib.get("license_note"), key
@@ -67,12 +67,25 @@ def test_every_library_names_its_origin_and_ships_its_license(reg):
             assert "does NOT cover this folder" in notice, f"{key}: its LICENSE must say the MIT license does not apply"
 
 
-def test_verify_states_the_basis_of_a_library_that_has_no_open_license(reg, capsys):
-    key = next(k for k, lib in reg.libraries.items() if lib["license"] == "permission")
-    assert harness.cmd_verify(reg, argparse.Namespace(strict=True)) == 0
-    assert f"[INFO] library {key}: The origin publishes no license." in capsys.readouterr().out
-    del reg.libraries[key]["license_note"]
-    assert harness.cmd_verify(reg, argparse.Namespace(strict=False)) == 1
+# a library with `license: permission` is a special case, not necessarily represented in the registry right now,
+# so these test harness.license_line() directly rather than depend on a real library carrying that status
+def test_a_permission_library_needs_a_license_note():
+    assert harness.license_line("zz", {"license": "permission"}) == \
+        ("FAIL", "library zz: license is 'permission' but no license_note says who gave it and what it covers")
+
+
+def test_a_permission_librarys_note_is_printed_as_info():
+    level, msg = harness.license_line("zz", {"license": "permission", "license_note": "  given privately.  "})
+    assert level == "INFO" and msg == "library zz: given privately."
+
+
+def test_a_recorded_open_license_needs_no_comment():
+    assert harness.license_line("zz", {"license": "MIT"}) is None
+
+
+def test_a_missing_license_fails_verify():
+    assert harness.license_line("zz", {})[0] == "FAIL"
+    assert harness.license_line("zz", {"license": "NONE"})[0] == "FAIL"
 
 
 def test_a_library_folder_without_a_registry_entry_fails_verify(reg, capsys):

@@ -72,11 +72,13 @@ Blender 4.2 on Linux. If you changed `.claude-plugin/`, also run
 
 And two that a tool cannot check for you:
 
-- **Only copy what a license or a permission lets you copy.** A public
-  repository without a license is not open source: its author keeps all rights.
-  `library/kb` is such a case, included by permission and labelled so
-  ([THIRD_PARTY.md](THIRD_PARTY.md)). A pull request that adds files without an
-  open license needs the permission in writing, in the pull request.
+- **Only copy what a license or a clear grant lets you copy.** A public
+  repository without a LICENSE file is not open source by default: its author
+  keeps all rights unless they say otherwise. `library/kb`'s origin has no
+  LICENSE file; it is vendored MIT on the author's word to the maintainer, and
+  `library/kb/LICENSE` and [THIRD_PARTY.md](THIRD_PARTY.md) say so. A pull
+  request that adds files without a published license needs that grant in
+  writing, in the pull request.
 - **A skill change is a code change.** Claude follows these files with
   code-execution rights inside Blender, so read a skill diff the way you would
   read a diff to a script that runs on your users' machines.
@@ -101,9 +103,13 @@ Apache-2.0 asks for a notice in that file saying it was changed.
 ## Adding a library
 
 1. Check the license. MIT, Apache-2.0, BSD, CC0 and the like allow copying. No
-   license means no, unless the author gives permission in writing: then the
-   entry is `license: permission` with a `license_note`, and the folder's
-   `LICENSE` says that the MIT license does not cover it.
+   published license means no, unless the author states one in writing: if they
+   name a specific open license (as `library/kb`'s author did, MIT), the entry
+   uses that license and the vendored `LICENSE` carries its text under the
+   author's name, noting where the grant came from. If instead they give a
+   narrower permission that names no license, the entry is `license: permission`
+   with a `license_note`, and the folder's `LICENSE` says the MIT license of
+   this repository does not cover it.
 2. Import only the skill folders, from a named commit, plus the `LICENSE` file as
    `library/<key>/LICENSE`. Leave out installers, add-ons, bridges and servers:
    the harness runs one MCP server and nothing else.

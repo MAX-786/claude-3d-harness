@@ -167,6 +167,21 @@ class Report:
         return 1 if bad else 0
 
 
+def license_line(key: str, lib: dict) -> tuple[str, str] | None:
+    """The FAIL or INFO line for a library's license, or None when it needs no comment (an open license on record).
+
+    `license: permission` is for a library with no open license, vendored on someone's word rather than a published
+    grant: `license_note` must say who gave it and what it covers, and verify prints that note every time.
+    """
+    if lib.get("license") == "permission":
+        if not lib.get("license_note"):
+            return "FAIL", f"library {key}: license is 'permission' but no license_note says who gave it and what it covers"
+        return "INFO", f"library {key}: {' '.join(lib['license_note'].split())}"
+    if not lib.get("license") or lib["license"] == "NONE":
+        return "FAIL", f"library {key}: no license recorded; only vendor what a license or a clear grant lets you copy"
+    return None
+
+
 # ---------------------------------------------------------------------- verify
 def cmd_verify(reg: Registry, args) -> int:
     r = Report()
@@ -175,13 +190,9 @@ def cmd_verify(reg: Registry, args) -> int:
     for key, lib in reg.libraries.items():
         if lib.get("dialect") not in reg.mcp["dialects"]:
             r.line("FAIL", f"library {key}: unknown dialect '{lib.get('dialect')}'")
-        if lib.get("license") == "permission":  # not an open license: say on what basis the files are here, every time
-            if not lib.get("license_note"):
-                r.line("FAIL", f"library {key}: license is 'permission' but no license_note says who gave it and what it covers")
-            else:
-                r.line("INFO", f"library {key}: {' '.join(lib['license_note'].split())}")
-        elif not lib.get("license") or lib["license"] == "NONE":
-            r.line("FAIL", f"library {key}: no license recorded; only vendor what a license or a permission lets you copy")
+        line = license_line(key, lib)
+        if line:
+            r.line(*line)
         if not present[key]:
             r.line("FAIL", f"library {key}: {rel(LIB.relative_to(ROOT))}/{key} is missing or empty - restore it from git, or reinstall the plugin")
         elif not (LIB / key / "LICENSE").is_file():  # a vendored library ships with the terms it was published under

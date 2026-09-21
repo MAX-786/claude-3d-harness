@@ -250,7 +250,7 @@ You can read every one of them before Claude does.
 | --- | --- | --- | --- | --- |
 | `cc` | [RobLe3/cc-blender-skill](https://github.com/RobLe3/cc-blender-skill) | MIT | 30 | Primary library: execution conventions, modeling, materials, lighting, cameras, rendering, animation, export, reference-locked reconstruction, refinement loop |
 | `gaius` | [Gaius114/blender-claude-mcp](https://github.com/Gaius114/blender-claude-mcp) | MIT | 11 | Specialists the primary lacks: architecture, procedural modeling, geometry nodes, sculpting, rigging, physics, spatial layout, research. The skill text is in Italian; for seven of these capabilities it is the only provider. |
-| `kb` | [kevinbadi/blender-skills](https://github.com/kevinbadi/blender-skills) | **none: included by permission, not covered by this repository's MIT license** | 15 | Named product camera moves, Poly Haven studio, scene, texture and look-variant helpers, glossy product finish, Three.js web viewer, photo-to-3D through Meshy |
+| `kb` | [kevinbadi/blender-skills](https://github.com/kevinbadi/blender-skills) | MIT (no LICENSE file at the origin; see below) | 15 | Named product camera moves, Poly Haven studio, scene, texture and look-variant helpers, glossy product finish, Three.js web viewer, photo-to-3D through Meshy |
 | `jo` | [jithinolickal/blender](https://github.com/jithinolickal/blender) | Apache-2.0 | 1 | Parametric design workflow |
 | `newo` | [newo-ether/blender-mcp](https://github.com/newo-ether/blender-mcp) | MIT | 1 | Usage skill for the MCP server (the server itself is fetched from its pinned release, v1.18.0) |
 
@@ -259,9 +259,9 @@ through a parent skill. `verify` fails when an entry points at a missing file, w
 `library/SHA256SUMS`, and warns when the library holds a SKILL.md the catalog does not know. `uv run
 scripts/harness.py list skills` prints the full table; `list libraries` prints where each library came from.
 
-**`library/kb` is not open source.** Its author publishes no license; the files are here on the maintainer's statement
-that the author gave permission privately, and this repository's MIT license does not cover them. If you fork or reuse
-this project, read [THIRD_PARTY.md](THIRD_PARTY.md) first.
+**`library/kb`'s origin carries no LICENSE file.** It is vendored MIT on the author's statement, given directly to the
+maintainer, that the work is licensed that way; `library/kb/LICENSE` carries the text. If you rely on that grant
+outside this project, get it from the author directly — see [THIRD_PARTY.md](THIRD_PARTY.md).
 
 ## Security
 
@@ -466,9 +466,9 @@ through [SECURITY.md](SECURITY.md).
 ## Credits
 
 The 3D skills are the work of their authors: RobLe3 (cc-blender-skill), Gaius114 (blender-claude-mcp), jithinolickal
-(blender), newo-ether (blender-mcp, a fork of ahujasid's original server) and kevinbadi (blender-skills). The first
-four published them under licenses that let this project include and adapt them; kevinbadi's are here by permission.
-The library would not exist without them.
+(blender), newo-ether (blender-mcp, a fork of ahujasid's original server) and kevinbadi (blender-skills). They licensed
+them in ways that let this project include and adapt them; kevinbadi's repository carries no LICENSE file, and their
+skills are vendored MIT on their word to the maintainer. The library would not exist without them.
 
 The rooftop study uses CC0 models and textures from [Poly Haven](https://polyhaven.com). In the demo video, the music
 is by Sascha Ende at [ende.app](https://ende.app) ("Happy Beats / Business Moves", vol. 12, CC BY 4.0) and the sound
@@ -476,8 +476,7 @@ effects are CC0 by Kenney and unicae_games. The video was edited with HyperFrame
 
 ## License
 
-This repository is MIT licensed ([LICENSE](LICENSE)), **except `library/kb`**, which is not under an open license: its
-author publishes none, it is included by permission given privately to the maintainer, and the MIT license gives you no
-rights to it. The other libraries under `library/` keep the licenses their authors chose (three MIT, one Apache-2.0).
-Each folder has its license file or notice next to it, and [THIRD_PARTY.md](THIRD_PARTY.md) lists origins, commits and
-what was changed.
+This repository is MIT licensed ([LICENSE](LICENSE)). The libraries under `library/` keep the licenses their authors
+chose (four MIT, one Apache-2.0); `library/kb`'s origin ships no LICENSE file, so its `library/kb/LICENSE` was written
+for this repository from the author's word to the maintainer. Each folder has its license file next to it, and
+[THIRD_PARTY.md](THIRD_PARTY.md) lists origins, commits and what was changed.
