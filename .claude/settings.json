@@ -12,10 +12,10 @@
       "mcp__blender__claim_blender_instance",
       "mcp__blender__release_blender_instance"
     ],
-    "deny": [
-      "Edit(/upstream/**)",
-      "Write(/upstream/**)",
-      "NotebookEdit(/upstream/**)"
+    "ask": [
+      "Edit(/library/**)",
+      "Write(/library/**)",
+      "NotebookEdit(/library/**)"
     ]
   }
 }

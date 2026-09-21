@@ -22,15 +22,18 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      # No `submodules: true` on purpose: setup has to fetch the upstreams itself, as it does for a user.
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0; this action publishes no moving major tag
 
       - name: Set up (without Blender)
         run: uv run scripts/harness.py setup --skip-blender-extension
 
-      - name: The registry verifies with no warnings
+      - name: The registry verifies with no warnings, and the library matches its checksums
         run: uv run scripts/harness.py verify --strict
+
+      - name: The checksum list is readable without this project's code
+        if: runner.os == 'Linux' # sha256sum is not on every macOS image; one OS proves the point
+        run: cd library && sha256sum -c --quiet SHA256SUMS
 
       - name: The command line prints a load plan and the catalog
         run: |

@@ -3,8 +3,8 @@
 [![ci](https://github.com/MAX-786/claude-3d-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/MAX-786/claude-3d-harness/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Build Blender scenes with Claude Code using five community skill libraries, through one registry and one MCP
-server.
+Build Blender scenes with Claude Code: a built-in, security-reviewed library of 43 Blender skills, behind one registry
+and one MCP server.
 
 https://github.com/user-attachments/assets/915189cc-cb68-4e78-84b0-212230ff18bf
 
@@ -14,7 +14,7 @@ The first cinematic job run through the harness, from a grey blockout at 22:07 t
 </sub></p>
 
 [Get started](#get-started) · [How it works](#how-it-works) · [A real job](#a-real-job-stage-by-stage) ·
-[Upstreams](#whats-composed) · [Status](#status)
+[The library](#whats-in-the-library) · [Security](#security) · [Status](#status)
 
 ## Get started
 
@@ -22,9 +22,8 @@ You need:
 
 - Claude Code
 - [Blender](https://www.blender.org/download/) 4.2 or newer
-- [uv](https://docs.astral.sh/uv/getting-started/installation/) and [Git](https://git-scm.com/downloads) on your
-  `PATH`
-- optionally `ffmpeg`, for camera-move videos
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) on your `PATH`
+- optionally `ffmpeg`, to encode rendered frame sequences to video
 
 Windows 11 is tested end to end. On macOS and Linux, CI checks setup, the registry and the load plans on every commit,
 and on Linux it installs the Blender extension into Blender 4.2. A full Blender job on either has not been reported
@@ -49,9 +48,9 @@ View and open the **BlenderMCP** tab.
 /claude-3d-harness a wristwatch on dark slate, soft studio light, one hero render
 ```
 
-The first run takes a little longer. The harness downloads its five skill libraries at their pinned commits (about 30
-seconds, once per plugin version). If Blender does not have the MCP extension yet, it offers to install it from the
-pinned release, checked against a SHA-256; restart Blender after that.
+Everything the harness needs to know ships with the plugin, so there is nothing to download first. If Blender does not
+have the MCP extension yet, Claude offers to install it from the pinned release, checked against a SHA-256; restart
+Blender after that.
 
 You don't have to type the command: describe any 3D job and Claude picks the skill up on its own. Each job writes its
 plan, checkpoint renders, final images and a report to `output/<date>-<job>/` in your current project. Claude Code asks
@@ -75,17 +74,18 @@ prompt next to the render.
 
 ## How it works
 
-The Blender skill libraries on GitHub were each written to be installed on their own. Installed together they
-conflict: they target different MCP servers, two ship a skill with the same name, and some open their own socket to
-Blender. This repository keeps them upstream, pinned as git submodules, and adds the layer that lets Claude Code use
-them together:
+Claude can drive Blender on its own. What it lacks is what a production artist carries around: which order to build
+in, what a believable material needs, when to stop and look. The open-source Blender skill libraries on GitHub hold
+much of that, but each was written to be installed alone. Installed together they conflict: they target different MCP
+servers, two ship a skill with the same name, and some carry their author's own machine inside them. This repository
+brings four of them in (`library/`), reviews and fixes what they contain, and adds the layer that lets Claude Code use
+them as one:
 
 - a registry that routes every capability to exactly one skill, with fallbacks;
 - translation tables for the MCP tool names each library was written against;
 - profiles (`fast`, `standard`, `cinematic`) that scale planning, checkpoints and render budgets to the job;
-- workflows that put the stages in order, with a render checkpoint at each gate.
-
-It contains no 3D skills of its own.
+- workflows that put the stages in order, with a render checkpoint at each gate;
+- rules that protect the scene you already have: nothing is cleared, reloaded or saved unless you asked.
 
 ```text
              Claude Code
@@ -96,7 +96,7 @@ It contains no 3D skills of its own.
                   |
    scripts/harness.py resolve               registry -> ordered load plan
                   |
-   upstream/<repo>/.../SKILL.md             read on demand, one stage at a time
+   library/<key>/<skill>/SKILL.md           read on demand, one stage at a time
                   |
    MCP server "blender"  ->  Blender        build, render a checkpoint, inspect, refine
 ```
@@ -105,7 +105,7 @@ It contains no 3D skills of its own.
    with a few objects is `standard`; an environment with weather, night or a named lens is `cinematic`. The rules and
    worked examples are in [orchestrator/task-classifier.md](orchestrator/task-classifier.md).
 2. **Choose a workflow:** `modeling`, `product`, `photography`, `animation`, `environment` or `cinematic`.
-3. **Resolve.** The registry turns workflow and profile into a load plan: which upstream skill to read for each
+3. **Resolve.** The registry turns workflow and profile into a load plan: which library skill to read for each
    stage, in order, with the profile's budgets, the optional stages and when they apply, fallbacks, and the
    adjustments each skill needs under the harness.
 4. **Build stage by stage.** Each SKILL.md is read just before its stage; several run past a thousand lines. Every
@@ -127,24 +127,23 @@ BUDGETS
 
 LOAD IN ORDER (read each SKILL.md just before its stage, not all up front)
    1. [always] mcp-usage -> newo/blender-mcp
-      upstream/newo-blender-mcp/skills/blender-mcp/SKILL.md
+      library/newo/blender-mcp/SKILL.md
    2. [always] execution-core -> cc/text-to-blender
-      upstream/cc-blender-skill/plugin/skills/text-to-blender/SKILL.md
+      library/cc/text-to-blender/SKILL.md
    ...
   12. [lighting] lighting -> cc/blender-lighting
-      upstream/cc-blender-skill/plugin/skills/blender-lighting/SKILL.md
+      library/cc/blender-lighting/SKILL.md
       stage note: Includes atmosphere - volumetrics, practicals, motivated sources.
    ...
 
 FALLBACKS (only if the chosen skill is missing or has failed twice on the same defect)
-  lighting: gaius/blender-lighting (upstream/blender-claude-mcp/skill/blender-lighting/SKILL.md)
+  lighting: gaius/blender-lighting (library/gaius/blender-lighting/SKILL.md)
   ...
 ```
 
 More ways to call it:
 
 ```powershell
-uv run scripts/harness.py resolve -w product -p standard --variant camera-animation=perfect-loop
 uv run scripts/harness.py resolve -w modeling -p fast --add architecture
 uv run scripts/harness.py resolve -c materials lighting -p fast    # an edit to an existing scene
 uv run scripts/harness.py list capabilities
@@ -156,16 +155,15 @@ These problems turned up while cataloging the libraries:
 
 - **Three MCP servers.** Most skills were written for the original `ahujasid/blender-mcp`, one library for a
   connector registered as `Blender` with a different tool surface, and the newo-ether usage skill for tools only that
-  fork has. `registry/mcp.yaml` keeps a translation table per upstream, and the load plan prints it next to the
+  fork has. `registry/mcp.yaml` keeps a translation table per library, and the load plan prints it next to the
   skills that need it.
-- **Name collisions.** Two libraries ship `blender-lighting`, and one ships duplicate copies of its own skills. The
-  registry namespaces them (`cc/blender-lighting`, `gaius/blender-lighting`), routes one and keeps the other as a
-  fallback.
-- **Skills that bypass MCP.** Seven bundle Node scripts that open the Blender add-on socket themselves. They are
-  marked `direct-socket`: Claude takes their parameters and step order and performs the steps through MCP.
-- **Skills that must not run here.** One needs its own WebSocket add-on, a second execution path next to the MCP
-  server, so it is excluded. One rewrites skill files and cuts releases as part of its loop; it carries a note, and
-  `upstream/` is edit-denied in `.claude/settings.json`.
+- **Name collisions.** Two libraries ship `blender-lighting`. The registry namespaces them (`cc/blender-lighting`,
+  `gaius/blender-lighting`), routes one and keeps the other as a fallback.
+- **Second execution paths.** Three skills carried a helper that sends code to a private HTTP bridge, and other
+  libraries needed their own add-on or socket. The harness runs one MCP server, so those were left out or removed.
+- **Skills written for one person's machine.** Imports from `D:\...`, renders to the author's Downloads folder,
+  recipes that begin by emptying the scene, a loop that rewrites skill files when a render is rejected. See
+  [Security](#security).
 - **Context cost.** Only the entry skill is registered with Claude Code. Everything else is read on demand, a stage at
   a time.
 
@@ -241,20 +239,47 @@ Workflows live in `workflows/*.yaml`, one per job type:
 | `environment` | A place with many objects, delivered as a still |
 | `cinematic` | Environment plus atmosphere plus a graded final frame, usually with camera motion |
 
-## What's composed
+## What's in the library
 
-| Key | Upstream | License | SKILL.md files | Role here |
+The skills live in this repository under `library/<key>/`, each library next to the license it was published under.
+You can read every one of them before Claude does.
+
+| Key | Written by | License | SKILL.md files | Role here |
 | --- | --- | --- | --- | --- |
-| `cc` | [RobLe3/cc-blender-skill](https://github.com/RobLe3/cc-blender-skill) | MIT | 31 | Primary library: execution conventions, modeling, materials, lighting, cameras, rendering, animation, export, reference-locked reconstruction, refinement loop |
-| `gaius` | [Gaius114/blender-claude-mcp](https://github.com/Gaius114/blender-claude-mcp) | MIT | 12 | Specialists the primary lacks: architecture, procedural modeling, geometry nodes, sculpting, rigging, physics, spatial layout, research. The skill text is in Italian; for seven of these capabilities it is the only provider. |
-| `kb` | [kevinbadi/blender-skills](https://github.com/kevinbadi/blender-skills) | none | 16 | Product camera moves, Poly Haven studio helpers, photo-to-3D |
+| `cc` | [RobLe3/cc-blender-skill](https://github.com/RobLe3/cc-blender-skill) | MIT | 30 | Primary library: execution conventions, modeling, materials, lighting, cameras, rendering, animation, export, reference-locked reconstruction, refinement loop |
+| `gaius` | [Gaius114/blender-claude-mcp](https://github.com/Gaius114/blender-claude-mcp) | MIT | 11 | Specialists the primary lacks: architecture, procedural modeling, geometry nodes, sculpting, rigging, physics, spatial layout, research. The skill text is in Italian; for seven of these capabilities it is the only provider. |
 | `jo` | [jithinolickal/blender](https://github.com/jithinolickal/blender) | Apache-2.0 | 1 | Parametric design workflow |
-| `newo` | [newo-ether/blender-mcp](https://github.com/newo-ether/blender-mcp) | MIT | 1 | The MCP server (pinned release v1.18.0) and its usage skill |
+| `newo` | [newo-ether/blender-mcp](https://github.com/newo-ether/blender-mcp) | MIT | 1 | Usage skill for the MCP server (the server itself is fetched from its pinned release, v1.18.0) |
 
-All 61 SKILL.md files are cataloged in `registry/skills.yaml`: 45 routable, 13 loaded only through a parent skill, and
-3 excluded (two duplicates, and the one that needs its own Blender bridge). `verify` fails when an entry points at a
-missing file and warns when an upstream ships a SKILL.md the catalog does not know. `uv run scripts/harness.py list
-skills` prints the full table.
+All 43 SKILL.md files and 3 reference documents are cataloged in `registry/skills.yaml`: 33 routable and 13 loaded only
+through a parent skill. `verify` fails when an entry points at a missing file, when any library file differs from
+`library/SHA256SUMS`, and warns when the library holds a SKILL.md the catalog does not know. `uv run
+scripts/harness.py list skills` prints the full table; `list libraries` prints where each library came from.
+
+A fifth library that earlier versions referenced, `kevinbadi/blender-skills`, is not here: it publishes no license, so
+it may not be copied. Its capabilities route to other skills for now ([THIRD_PARTY.md](THIRD_PARTY.md)).
+
+## Security
+
+Skills are instructions Claude follows while it can run Python inside Blender, so they were reviewed like code before
+they were included: every text file read in full, a pattern scan for network calls, dynamic execution, installs,
+hidden text and scene wipes, and each finding checked before anything was changed. Nothing malicious was found. What
+was found, and removed from 21 files:
+
+- imports from fixed folders on an author's own drive, which anyone able to create that folder could use to run code
+  inside your Blender;
+- helpers that POST code to an unauthenticated HTTP bridge, and a snippet that switched on Blender's online-access
+  preference;
+- recipes that emptied the open scene, deleted materials by name or wiped the World;
+- a refinement loop that wrote new instructions into skill files and prepared commits when you rejected a render;
+- a bundled script that could overwrite the drawing it was analysing.
+
+[docs/security-review.md](docs/security-review.md) lists every change and everything that was deliberately left as it
+is. `library/SHA256SUMS` records each file as reviewed; `verify` and CI fail when a skill changes without that list
+changing, and you can check your copy with `cd library && sha256sum -c SHA256SUMS`.
+
+One finding concerns the MCP add-on, not the skills: it stores the API keys you enter in its panel inside every .blend
+you save. [SECURITY.md](SECURITY.md) says what to do about that, and what the harness does not protect you from.
 
 ## The MCP layer
 
@@ -276,28 +301,16 @@ otherwise a second server named `blender_mcp` competes for the same Blender. `do
 
 ## Pinning and updates
 
-Upstream skills are instructions Claude follows with code-execution rights inside Blender, so changes to them are
-reviewed rather than pulled in automatically.
-
-- Each upstream is a submodule at a reviewed commit (`cataloged_at` in `registry/upstreams.yaml`).
-- The MCP server and its Blender extension are pinned to one release. The extension is checked against the SHA-256 in
-  `registry/mcp.yaml` before it is installed; the server wheel's SHA-256 is recorded there as well.
-- `outdated` compares the pins with what the upstreams publish now and changes nothing. A weekly workflow runs it and
-  keeps one issue listing the pins that are behind.
-- `update` moves upstreams to their branch tips and stages nothing. It prints a GitHub compare link per upstream,
-  reports catalog drift, and audits the changed files for network calls, shell or dynamic execution, credentials,
-  agent-config tampering, installs and destructive file operations. The flags prompt a human review; they are not
-  verdicts.
-- `upstream/` is edit-denied. Lessons that a skill would normally write back into its own files go to
-  `notes/lessons.md`.
-
-```powershell
-.\scripts\update.ps1 -Only cc                  # move one upstream to its branch tip and audit the diff
-uv run scripts/harness.py catalog-bump cc      # accept the new commit
-git add registry upstream/cc-blender-skill
-git commit -m "Bump cc-blender-skill"
-.\scripts\update.ps1 -Rollback                 # or return to the pinned commits
-```
+- **The skill library follows nobody.** It changes only through commits to this repository, and a skill change is
+  reviewed like a code change: edit, `audit --changed`, `checksums --write`, commit both
+  ([CONTRIBUTING.md](CONTRIBUTING.md)). `registry/libraries.yaml` records the commit each library came from, so its
+  author's later work can be compared and ported by hand.
+- **The MCP server and its Blender extension are pinned to one release**, the only thing still fetched at install
+  time. The extension is checked against the SHA-256 in `registry/mcp.yaml` before it is installed; the server wheel's
+  SHA-256 is recorded there as well. `outdated` compares the pin with the latest release and changes nothing. A weekly
+  workflow runs it and keeps one issue open while the pin is behind.
+- **During a job, `library/` is never edited.** Lessons that a skill would write back into its own files go to
+  `notes/lessons.md`, and the next load plan reads them.
 
 ## Commands
 
@@ -305,40 +318,32 @@ Everything runs through `uv run scripts/harness.py <command>`. Its only dependen
 
 | Command | What it does |
 | --- | --- |
-| `setup` | The whole install on any OS: `bootstrap`, `mcp-config --write`, `install-extension`, `doctor`, `verify` (`--provider`, `--blender <path>`, `--skip-blender-extension`) |
-| `doctor` | Prints the harness version and your system, then checks git, uv, optional tools, path length, Blender and its extension, submodules, `.mcp.json`, duplicate user-scope Blender servers, and whether the add-on is listening on `127.0.0.1:9876` |
-| `bootstrap` | Checks out every upstream at its pinned commit, also in a copy without git history (plugin install, ZIP download) |
-| `verify` | Validates the registry against the upstream trees (`--strict` fails on warnings too, as CI does) |
-| `outdated` | Read-only: lists the pins that are behind the upstream branch tips or the MCP server's latest release |
+| `setup` | The whole install on any OS: `mcp-config --write`, `install-extension`, `doctor`, `verify` (`--provider`, `--blender <path>`, `--skip-blender-extension`) |
+| `doctor` | Prints the harness version and your system, then checks uv, ffmpeg, path length on Windows, Blender and its extension, the skill library, `.mcp.json`, duplicate user-scope Blender servers, and whether the add-on is listening on `127.0.0.1:9876` |
+| `verify` | Validates the registry against the skill library, and every library file against `library/SHA256SUMS` (`--strict` fails on warnings too, as CI does) |
+| `outdated` | Read-only: is the pinned MCP server behind its latest release? |
 | `resolve` | Prints the load plan (`-w`, `-p`, `-c`, `--add`, `--variant`, `--json`) |
-| `list` | Prints upstreams, skills, capabilities, workflows or profiles |
+| `list` | Prints libraries, skills, capabilities, workflows or profiles |
 | `where <name>` | Finds every skill with a given bare name |
 | `mcp-config` | Renders `.mcp.json` from `registry/mcp.yaml` (`--provider`, `--write`) |
 | `install-extension` | Downloads, checksums and installs the active provider's Blender extension (`--blender <path>`) |
-| `update` | Moves upstreams forward, then verifies and audits what changed (`--rollback`) |
-| `audit` | Flags risky patterns in upstream files (`--since-cataloged`, `-v`) |
-| `catalog-bump` | Records the checked-out commit as reviewed |
+| `audit` | Flags lines a reviewer should read in the skill library (`--changed` for the files that differ from the checksums, `-v`) |
+| `checksums` | Compares the library with `library/SHA256SUMS`; `--write` records it as reviewed |
 
-`scripts/install.ps1`, `update.ps1` and `verify.ps1` are thin Windows wrappers: around `setup`, around `update`, and
-around `doctor` plus `verify`.
+`scripts/install.ps1` and `verify.ps1` are thin Windows wrappers: around `setup`, and around `doctor` plus `verify`.
 
 ## Run from a clone
 
 Use a checkout to work on the harness itself, or if you prefer it to the plugin. Disable the plugin while you work in
-the clone, or two Blender servers will compete for the same Blender. Besides the prerequisites above, `node` is useful
-for some product helpers under the fallback MCP provider.
-
-On Windows, clone to a short path. Git cannot create the submodule directories when the repository root is deeper
-than about 150 characters.
+the clone, or two Blender servers will compete for the same Blender.
 
 ```powershell
-git clone https://github.com/MAX-786/claude-3d-harness.git C:\dev\claude-3d-harness
-cd C:\dev\claude-3d-harness
+git clone https://github.com/MAX-786/claude-3d-harness.git
+cd claude-3d-harness
 .\scripts\install.ps1
 ```
 
-`install.ps1` checks out the five upstreams at their pinned commits and writes `.mcp.json`. It downloads the MCP
-provider's Blender extension from its pinned GitHub release, checks it against the SHA-256 recorded in
+`install.ps1` writes `.mcp.json`. It downloads the MCP provider's Blender extension from its pinned GitHub release, checks it against the SHA-256 recorded in
 `registry/mcp.yaml`, and installs it into every Blender it finds. It finishes with `doctor` and `verify`. Useful
 switches: `-BlenderPath` for a Blender in an unusual place, `-SkipBlenderExtension` to leave Blender alone, and
 `-Mcp ahujasid` for the fallback server.
@@ -367,8 +372,7 @@ uv run scripts/harness.py setup
 `--blender <path>` names a Blender in an unusual place, `--skip-blender-extension` leaves Blender alone, and
 `--provider ahujasid` configures the fallback server.
 
-A ZIP download from GitHub contains no submodules. `bootstrap` (and therefore `install.ps1`) handles that case: it
-initialises git and adds each upstream at the commit recorded in `registry/upstreams.yaml`.
+A ZIP download from GitHub works the same way: the skill library is inside it.
 
 To try your working copy as a plugin, start Claude Code from another folder with
 `claude --plugin-dir <path to your clone>`.
@@ -379,17 +383,18 @@ To try your working copy as a plugin, start Claude Code from another folder with
 SKILL.md                          the entry skill; the plugin serves it as /claude-3d-harness
 .claude-plugin/                   plugin and marketplace manifests
 .claude/skills/blender-harness/   points a clone at SKILL.md
-.claude/settings.json             in a clone: read-only MCP tools allowed, upstream/ edit-denied
+.claude/settings.json             in a clone: read-only MCP tools allowed, edits under library/ always ask
 .mcp.json                         generated: one server named "blender", used by the plugin and by clones
 CLAUDE.md                         instructions for Claude when working inside a clone
-registry/                         upstreams, skills, capabilities, profiles, mcp
+library/                          the skills: four libraries, each with its license, plus SHA256SUMS
+registry/                         libraries, skills, capabilities, profiles, mcp
 workflows/                        six job types as ordered stages
 orchestrator/                     classifier, workflow and skill selection, QA loop
-scripts/                          harness.py engine and the install / update / verify wrappers
-tests/                            tests for the engine; pytest.ini keeps pytest out of upstream/
-.github/                          CI, the weekly upstream watch, issue forms
-upstream/                         the submodules (read-only)
+scripts/                          harness.py engine and the install / verify wrappers
+tests/                            tests for the engine; pytest.ini keeps pytest out of library/
+.github/                          CI, the weekly MCP server watch, issue forms
 notes/lessons.md                  lessons from real jobs; load plans read them back
+docs/security-review.md           what the library was reviewed for, what was found, what was changed
 docs/media/                       the stage-render GIF used in this README
 output/                           job folders: plans, checkpoints, renders, reports (git-ignored)
 ```
@@ -398,22 +403,27 @@ output/                           job folders: plans, checkpoints, renders, repo
 
 Early, and so far used on one machine.
 
-Verified:
+Verified for 0.3.0:
 
-- Setup on Windows 11 with Blender 5.2.2 LTS and newo-ether v1.18.0: submodules, `.mcp.json` and the Blender
-  extension are in place and `doctor` passes every check. That includes a Blender installed at a drive root, which is
-  found through the Windows uninstall registry.
-- `verify` reports 0 failures and 0 warnings against the pinned commits, and the `resolve` and `list` examples in this
-  README run as shown.
-- The plugin passes `claude plugin validate`, installs into a clean Claude Code configuration, and exposes the
-  `/claude-3d-harness` skill and the `blender` server.
-- Setting up from a copy without git history, as a plugin install or a ZIP download gets: `bootstrap` fetches the five
-  upstreams at their pinned commits and `verify` passes.
+- On Windows 11: `verify --strict` reports 0 failures and 0 warnings, every workflow resolves at every profile to files
+  that exist, the 66 engine tests pass, the plugin passes `claude plugin validate`, and the `resolve` and `list`
+  examples in this README run as shown.
+- The library matches `library/SHA256SUMS`, and `sha256sum -c` agrees with the engine. An edited, an added and a
+  deleted skill file each fail `verify`.
+- The three hardened scripts compile, and the wireframe analyzer was run on a test drawing named `front.PNG`: the
+  drawing survives and the documented flags work.
+
+Verified on 0.2.0 and not re-run since the skills moved and were edited:
+
+- Setup on Windows 11 with Blender 5.2.2 LTS and newo-ether v1.18.0, including a Blender installed at a drive root,
+  which is found through the Windows uninstall registry.
+- The plugin installs into a clean Claude Code configuration and exposes the `/claude-3d-harness` skill and the
+  `blender` server.
 - Two jobs end to end, run from a clone: a `fast` single object (a wooden table) and the `cinematic` rooftop study
-  above.
-- On every commit, CI runs `setup`, `verify --strict`, a load plan and the engine's tests on Linux, macOS and Windows.
-  A second job installs the pinned extension into Blender 4.2.0 on Linux, headless, and checks that `doctor` finds
-  that Blender and the extension.
+  above. **No Blender job has been run on 0.3.0 yet.** The edits to the skills remove steps rather than add them, but
+  the world reset in the always-loaded execution skill is new code and has not rendered a frame.
+- CI on Linux, macOS and Windows, and the extension install into Blender 4.2.0 on Linux. The workflows were changed
+  for 0.3.0 and have not run yet.
 
 Not exercised yet (each has an open issue, and a report from you closes it):
 
@@ -433,24 +443,25 @@ Issues and pull requests are welcome. Most changes are data:
 | Task | Where |
 | --- | --- |
 | Prefer another skill for a capability | Swap `provider` and `fallbacks` in `registry/capabilities.yaml` |
-| Handle a new upstream skill | Add it to `registry/skills.yaml` as `active`, `chained` or `excluded` |
-| Add an upstream library | `git submodule add`, then an entry in `registry/upstreams.yaml` with its dialect, catalog and routes |
+| Fix or improve a skill | Edit it under `library/`, run `audit --changed`, then `checksums --write`; commit both |
+| Add a library | It needs a license that allows copying; then import, review, catalog ([CONTRIBUTING.md](CONTRIBUTING.md)) |
 | Pin a newer MCP release | Update `release`, the URLs and both SHA-256 values in `registry/mcp.yaml`, then `harness.py mcp-config --write` |
 
 Run `uv run scripts/harness.py verify --strict` and `uv run --with pytest --with pyyaml pytest -q` before opening a pull
 request; CI runs both on Linux, macOS and Windows. `verify` also checks the plugin layout: the entry skill stays at the
 root as `SKILL.md`, with no root `skills/` folder, which is what gives the plugin its `/claude-3d-harness` command.
-Releases bump `version` in `.claude-plugin/plugin.json`; installed copies only update when it changes. Fixes to a
-skill's content belong in that skill's own repository. If a skill misbehaves in a real job, an entry in
+Releases bump `version` in `.claude-plugin/plugin.json`; installed copies only update when it changes. A fix to a
+skill's content is a pull request here, reviewed like code. If a skill misbehaves in a real job, an entry in
 `notes/lessons.md` (date, job, what failed, what fixed it, which skill) is one of the most useful contributions, and so
 is a job report issue with your render. The full guide is [CONTRIBUTING.md](CONTRIBUTING.md); security reports go
 through [SECURITY.md](SECURITY.md).
 
 ## Credits
 
-The 3D skills are the work of their authors: RobLe3 (cc-blender-skill), Gaius114 (blender-claude-mcp), kevinbadi
-(blender-skills), jithinolickal (blender) and newo-ether (blender-mcp, a fork of ahujasid's original server). This
-repository only routes between them.
+The 3D skills are the work of their authors: RobLe3 (cc-blender-skill), Gaius114 (blender-claude-mcp), jithinolickal
+(blender) and newo-ether (blender-mcp, a fork of ahujasid's original server). They published them under licenses that
+let this project include and adapt them, and the library would not exist without them. Earlier versions also pointed
+to kevinbadi's blender-skills, which showed what product camera moves and studio helpers should cover.
 
 The rooftop study uses CC0 models and textures from [Poly Haven](https://polyhaven.com). In the demo video, the music
 is by Sascha Ende at [ende.app](https://ende.app) ("Happy Beats / Business Moves", vol. 12, CC BY 4.0) and the sound
@@ -458,7 +469,6 @@ effects are CC0 by Kenney and unicae_games. The video was edited with HyperFrame
 
 ## License
 
-This repository is MIT licensed ([LICENSE](LICENSE)). Each submodule keeps its own license. `kevinbadi/blender-skills`
-publishes none, so its author keeps all rights: it is referenced as a submodule pointer only, and nothing from it is
-copied here. Most of what it provides has a fallback; dropping it would lose two optional product stages, photo-to-3D
-and look variants. Details are in [THIRD_PARTY.md](THIRD_PARTY.md).
+This repository is MIT licensed ([LICENSE](LICENSE)). The libraries under `library/` keep the licenses their authors
+chose (three MIT, one Apache-2.0); each license file sits next to its library, and [THIRD_PARTY.md](THIRD_PARTY.md)
+lists origins, commits and what was changed.

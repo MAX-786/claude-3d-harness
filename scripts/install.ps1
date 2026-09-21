@@ -3,11 +3,11 @@
     Set up claude-3d-harness on this machine.
 .DESCRIPTION
     Runs `uv run scripts/harness.py setup`, which:
-    1. Checks out every upstream submodule at its pinned commit.
-    2. Writes .mcp.json for the chosen Blender MCP provider (one server, named "blender").
-    3. Downloads, checksums and installs the provider's Blender extension, if Blender is found.
-    4. Runs the environment and registry checks.
-    All logic lives in scripts/harness.py; this file only checks the two tools it needs and passes the switches on.
+    1. Writes .mcp.json for the chosen Blender MCP provider (one server, named "blender").
+    2. Downloads, checksums and installs the provider's Blender extension, if Blender is found.
+    3. Runs the environment and registry checks.
+    The skill library is part of the repository, so nothing else is fetched.
+    All logic lives in scripts/harness.py; this file only checks for uv and passes the switches on.
     On macOS and Linux, run the same command directly: uv run scripts/harness.py setup
 .PARAMETER Mcp
     newo-ether (default, pinned release of the structured fork) or ahujasid (the original server).
@@ -37,7 +37,6 @@ function Assert-Tool([string]$Name, [string]$Hint) {
     }
 }
 
-Assert-Tool git 'Install Git for Windows from https://git-scm.com/download/win'
 Assert-Tool uv  'Install uv from https://docs.astral.sh/uv/getting-started/installation/'
 
 $setupArgs = @('setup', '--provider', $Mcp)

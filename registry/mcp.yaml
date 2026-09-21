@@ -9,7 +9,7 @@ default_provider: newo-ether
 providers:
   newo-ether:
     repo: https://github.com/newo-ether/blender-mcp
-    upstream: newo                      # key in registry/upstreams.yaml
+    library: newo                       # its usage skill: key in registry/libraries.yaml
     release: v1.18.0
     blender_min: "4.2"
     launch:
@@ -44,7 +44,7 @@ providers:
         DISABLE_TELEMETRY: "true"
     blender_addon: https://github.com/ahujasid/mcp-for-blender/blob/main/addon.py
     notes: >-
-      The server every skill upstream was validated against. Fallback when the
+      The server most of the skill library was validated against. Fallback when the
       fork misbehaves. Install addon.py by hand (Preferences > Add-ons > Install
       from Disk), then press "Connect" in the BlenderMCP sidebar tab.
 
@@ -68,7 +68,7 @@ canonical_tools:
   - poll_rodin_job_status
   - import_generated_asset
 
-# Upstream skills were written against different MCP servers. A dialect maps the
+# The libraries were written against different MCP servers. A dialect maps the
 # tool names a skill mentions to the canonical tools of the one server we run.
 dialects:
   ahujasid:
@@ -96,6 +96,3 @@ dialects:
         execute_blender_code setting the 3D viewport's region_3d view
         (view_perspective, view_rotation, view_distance) or bpy.ops.view3d.view_axis
         inside a temp_override for the VIEW_3D area
-    also: >-
-      These skills mention an HTTP fallback on localhost:7234. That bridge is
-      never installed under the harness: ignore every port-7234 instruction.

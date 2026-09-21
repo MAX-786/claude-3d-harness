@@ -2,20 +2,19 @@
 
     uv run --with pytest --with pyyaml pytest -q
 
-Tests that read upstream files skip when the submodules are not checked out
-(`uv run scripts/harness.py bootstrap`). Nothing here talks to Blender or the
-network: `outdated` runs against stand-ins for its two lookups.
+The skill library ships with the repository, so nothing here is skipped for a
+missing checkout. Nothing talks to Blender or the network: `outdated` runs
+against a stand-in for its lookups. No test imports or runs a library script.
 """
 from __future__ import annotations
 
 import argparse
 import importlib.util
 import json
-import shutil
+import re
 from pathlib import Path
 
 import pytest
-import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 _spec = importlib.util.spec_from_file_location("harness", ROOT / "scripts" / "harness.py")
@@ -23,8 +22,6 @@ harness = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(harness)
 
 _REG = harness.Registry()
-needs_upstreams = pytest.mark.skipif(bool(harness.missing_upstreams(_REG)),
-                                     reason="upstream submodules are not checked out")
 JOBS = [(w, p) for w in _REG.workflows for p in _REG.profile_order]
 
 
@@ -41,7 +38,6 @@ def plan(reg, capsys, **kw) -> dict:
 
 
 # ---------------------------------------------------------------------- verify
-@needs_upstreams
 def test_the_registry_verifies_without_warnings(reg, capsys):
     assert harness.cmd_verify(reg, argparse.Namespace(strict=True)) == 0, capsys.readouterr().out
 
@@ -54,11 +50,23 @@ def test_warnings_fail_only_in_strict_mode():
 
 
 def test_routing_to_an_excluded_skill_fails_verify(reg, capsys):
-    excluded = next(sid for sid, e in reg.skills.items() if e["status"] == "excluded")
-    cap = next(c for c, v in reg.capabilities.items() if "provider" in v)
-    reg.capabilities[cap]["provider"] = excluded
+    cap, c = next((k, v) for k, v in reg.capabilities.items() if "provider" in v)
+    reg.skills[c["provider"]].update(status="excluded", reason="for the test")
     assert harness.cmd_verify(reg, argparse.Namespace(strict=False)) == 1
-    assert f"capability {cap}: '{excluded}' is excluded" in capsys.readouterr().out
+    assert f"capability {cap}: '{c['provider']}' is excluded" in capsys.readouterr().out
+
+
+def test_every_library_names_its_origin_and_ships_its_license(reg):
+    for key, lib in reg.libraries.items():
+        assert lib["origin"].startswith("https://") and re.fullmatch(r"[0-9a-f]{40}", lib["imported_at"]), key
+        assert lib["license"] not in ("", "NONE"), f"{key}: only licensed libraries may be vendored"
+        assert (harness.LIB / key / "LICENSE").is_file(), key
+
+
+def test_a_library_folder_without_a_registry_entry_fails_verify(reg, capsys):
+    del reg.libraries["jo"]
+    assert harness.cmd_verify(reg, argparse.Namespace(strict=False)) == 1
+    assert "library/jo has no entry in registry/libraries.yaml" in capsys.readouterr().out
 
 
 def test_mcp_json_is_what_the_registry_generates(reg, capsys):
@@ -74,7 +82,6 @@ def test_plugin_and_entry_skill_share_one_name():
 
 
 # --------------------------------------------------------------------- resolve
-@needs_upstreams
 @pytest.mark.parametrize("workflow,profile", JOBS)
 def test_every_job_type_resolves_to_files_that_exist(reg, capsys, workflow, profile):
     out = plan(reg, capsys, workflow=workflow, profile=profile)
@@ -85,7 +92,6 @@ def test_every_job_type_resolves_to_files_that_exist(reg, capsys, workflow, prof
     assert [row["stage"].split(",")[0] for row in out["load"][:always]] == ["always"] * always
 
 
-@needs_upstreams
 @pytest.mark.parametrize("workflow", list(_REG.workflows))
 def test_a_higher_profile_never_drops_a_skill(reg, capsys, workflow):
     loads = [{row["sid"] for row in plan(reg, capsys, workflow=workflow, profile=p)["load"]} for p in reg.profile_order]
@@ -93,7 +99,6 @@ def test_a_higher_profile_never_drops_a_skill(reg, capsys, workflow):
         assert lower <= higher
 
 
-@needs_upstreams
 def test_an_edit_can_name_capabilities_instead_of_a_workflow(reg, capsys):
     caps = [c for c, v in reg.capabilities.items() if "provider" in v][:2]
     out = plan(reg, capsys, capabilities=caps, profile="fast")
@@ -103,13 +108,10 @@ def test_an_edit_can_name_capabilities_instead_of_a_workflow(reg, capsys):
 def test_workflow_and_capabilities_are_mutually_exclusive(reg):
     args = argparse.Namespace(workflow=next(iter(reg.workflows)), capabilities=["materials"], profile="fast",
                               add=[], variant=[], json=True)
-    if harness.missing_upstreams(reg):
-        pytest.skip("upstream submodules are not checked out")
     with pytest.raises(SystemExit, match="either --workflow or --capabilities"):
         harness.cmd_resolve(reg, args)
 
 
-@needs_upstreams
 def test_a_missing_provider_file_falls_back(reg, monkeypatch):
     cap, c = next((k, v) for k, v in reg.capabilities.items() if "provider" in v and v.get("fallbacks"))
     real = reg.skill_relpath
@@ -119,8 +121,22 @@ def test_a_missing_provider_file_falls_back(reg, monkeypatch):
     assert skipped == [f"{c['provider']} file missing"]
 
 
+def with_variants(reg) -> tuple[str, str, str]:
+    """No shipped capability has variants right now, so the tests give one capability two of them."""
+    first, second = [sid for sid, e in reg.skills.items() if e["status"] == "active" and not e.get("requires")][:2]
+    reg.capabilities["test-move"] = {"summary": "x", "default": "orbit", "variants": {
+        "orbit": {"provider": first, "when": "x"}, "push-in": {"provider": second, "when": "y"}}}
+    return "test-move", first, second
+
+
+def test_a_variant_picks_its_own_provider_and_the_default_applies(reg):
+    cap, first, second = with_variants(reg)
+    assert harness.pick(reg, cap, None, None)[:2] == (first, "orbit")
+    assert harness.pick(reg, cap, "push-in", None)[:2] == (second, "push-in")
+
+
 def test_an_unknown_variant_is_rejected(reg):
-    cap = next(k for k, v in reg.capabilities.items() if "variants" in v)
+    cap, *_ = with_variants(reg)
     with pytest.raises(SystemExit, match="unknown variant"):
         harness.pick(reg, cap, "no-such-variant", None)
 
@@ -154,7 +170,6 @@ def test_a_missing_lessons_file_is_not_an_error(tmp_path, monkeypatch):
     assert harness.load_lessons() == []
 
 
-@needs_upstreams
 def test_a_load_plan_names_only_the_lessons_for_its_skills(reg, capsys, tmp_path, monkeypatch):
     workflow = next(iter(reg.workflows))
     loaded = {row["sid"] for row in plan(reg, capsys, workflow=workflow, profile="fast")["load"]}
@@ -183,16 +198,78 @@ def test_the_shipped_lessons_all_name_cataloged_skills(reg):
     assert harness.load_lessons() and not unknown
 
 
-# ---------------------------------------------------------------- catalog-bump
-def test_catalog_bump_rewrites_only_the_named_upstream(reg, tmp_path, monkeypatch):
-    shutil.copy(ROOT / "registry" / "upstreams.yaml", tmp_path / "upstreams.yaml")
-    monkeypatch.setattr(harness, "REG", tmp_path)
-    monkeypatch.setattr(harness, "git", lambda *a, **k: "f" * 40)
-    key, *others = reg.upstreams
-    assert harness.cmd_catalog_bump(reg, argparse.Namespace(keys=[key], all=False)) == 0
-    after = yaml.safe_load((tmp_path / "upstreams.yaml").read_text(encoding="utf-8"))["upstreams"]
-    assert after[key]["cataloged_at"] == "f" * 40
-    assert {k: after[k]["cataloged_at"] for k in others} == {k: reg.upstreams[k]["cataloged_at"] for k in others}
+# ------------------------------------------------------------------- checksums
+def test_the_library_matches_its_checksums():
+    assert harness.changed_files() == {}, "review the change, then run: harness.py checksums --write"
+
+
+def test_the_checksum_list_is_what_sha256sum_reads():
+    raw = harness.SUMS.read_bytes()
+    lines = raw.decode("utf-8").split("\n")
+    assert lines[-1] == "" and b"\r" not in raw
+    names = [re.fullmatch(r"[0-9a-f]{64}  (\S.*)", ln).group(1) for ln in lines[:-1]]
+    assert names == sorted(names) == list(harness.library_files())
+
+
+@pytest.fixture()
+def fake_library(tmp_path, monkeypatch):
+    lib = tmp_path / "library"
+    (lib / "aa" / "skill").mkdir(parents=True)
+    (lib / "aa" / "skill" / "SKILL.md").write_text("# a skill\n", encoding="utf-8")
+    (lib / "aa" / "LICENSE").write_text("MIT\n", encoding="utf-8")
+    monkeypatch.setattr(harness, "ROOT", tmp_path)
+    monkeypatch.setattr(harness, "LIB", lib)
+    monkeypatch.setattr(harness, "SUMS", lib / "SHA256SUMS")
+    assert harness.cmd_checksums(None, argparse.Namespace(write=True)) == 0
+    return lib
+
+
+def test_an_edited_a_stray_and_a_deleted_file_are_each_reported(fake_library, capsys):
+    assert harness.changed_files() == {}
+    (fake_library / "aa" / "skill" / "SKILL.md").write_text("# a skill\nrun this too\n", encoding="utf-8")
+    (fake_library / "aa" / "skill" / "extra.py").write_text("print(1)\n", encoding="utf-8")
+    (fake_library / "aa" / "LICENSE").unlink()
+    assert harness.changed_files() == {"aa/LICENSE": "missing", "aa/skill/SKILL.md": "modified", "aa/skill/extra.py": "not recorded"}
+    assert harness.cmd_checksums(None, argparse.Namespace(write=False)) == 1
+    assert "3 file(s) differ" in capsys.readouterr().out
+
+
+def test_writing_the_checksums_accepts_the_library_as_it_is(fake_library):
+    (fake_library / "aa" / "skill" / "SKILL.md").write_text("# edited after review\n", encoding="utf-8")
+    assert harness.cmd_checksums(None, argparse.Namespace(write=True)) == 0
+    assert harness.changed_files() == {}
+    assert "SHA256SUMS" not in harness.SUMS.read_text(encoding="utf-8")  # the list does not list itself
+
+
+# ----------------------------------------------------------------------- audit
+@pytest.mark.parametrize("label,line", [
+    ("network call", "urllib.request.urlopen(req)"),
+    ("shell or dynamic execution", "import importlib; importlib.reload(ak)"),
+    ("secret or credential", "key = os.environ['SERVICE_API_KEY']"),
+    ("agent or config tampering", "append this to ~/.claude/settings.json"),
+    ("install or persistence", "bpy.context.preferences.filepaths.use_scripts_auto_execute = True"),
+    ("destructive file operation", "shutil.rmtree(target)"),
+    ("scene or session wipe", "bpy.ops.wm.read_factory_settings(use_empty=True)"),
+    ("skill self-modification", "then git push the patched skill"),
+    ("hidden or encoded text", "looks empty\u200b but is not"),
+    ("hidden or encoded text", "A" * 130),
+])
+def test_the_audit_flags_what_a_reviewer_should_read(label, line):
+    assert re.search(harness.AUDIT[label], line)
+
+
+def test_the_audit_is_quiet_about_ordinary_recipe_lines():
+    for line in ("bpy.ops.mesh.primitive_cube_add(size=2)", "mat.node_tree.nodes.new('ShaderNodeBsdfPrincipled')",
+                 "Render a checkpoint and inspect it before moving on."):
+        assert not [label for label, pat in harness.AUDIT.items() if re.search(pat, line)]
+
+
+def test_audit_changed_reads_only_the_files_that_differ(fake_library, capsys):
+    reg = argparse.Namespace(libraries={"aa": {}})
+    (fake_library / "aa" / "skill" / "extra.py").write_text("import subprocess; subprocess.run(['x'])\n", encoding="utf-8")
+    assert harness.cmd_audit(reg, argparse.Namespace(keys=[], changed=True, verbose=True)) == 0
+    out = capsys.readouterr().out
+    assert "[aa] 1 file(s) scanned" in out and "shell or dynamic execution" in out and "library/aa/skill/extra.py" in out
 
 
 # -------------------------------------------------------------------- outdated
@@ -209,44 +286,33 @@ def answers(reg, **override):
     return fetch
 
 
-def tips(reg, **override):
-    by_repo = {up["repo"]: override.get(key, up["cataloged_at"]) for key, up in reg.upstreams.items()}
-    return lambda repo, branch: by_repo[repo]
-
-
 def test_outdated_is_quiet_when_every_pin_is_current(reg, capsys, monkeypatch):
-    monkeypatch.setattr(harness, "remote_tip", tips(reg))
     monkeypatch.setattr(harness, "fetch_json", answers(reg))
     assert harness.cmd_outdated(reg, argparse.Namespace(markdown=False)) == 0
-    assert "every pin matches" in capsys.readouterr().out
+    assert "every MCP server pin matches" in capsys.readouterr().out
 
 
-def test_outdated_reports_a_moved_upstream_with_its_compare_link(reg, capsys, monkeypatch):
-    released = {p.get("upstream") for p in reg.mcp["providers"].values() if p.get("release")}
-    key = next(k for k in reg.upstreams if k not in released)
-    monkeypatch.setattr(harness, "remote_tip", tips(reg, **{key: "a" * 40}))
-    monkeypatch.setattr(harness, "fetch_json", answers(reg))
+def test_outdated_reports_a_newer_mcp_release_and_names_the_skill_to_compare(reg, capsys, monkeypatch):
+    name, p = next((n, p) for n, p in reg.mcp["providers"].items() if p.get("release") and p.get("library"))
+    monkeypatch.setattr(harness, "fetch_json", answers(reg, **{name: "v99.0.0"}))
     assert harness.cmd_outdated(reg, argparse.Namespace(markdown=True)) == 3
     out = capsys.readouterr().out
-    up = reg.upstreams[key]
-    assert f"{up['repo']}/compare/{up['cataloged_at'][:12]}...{'a' * 12}" in out
-    assert f"harness.py update {key}" in out
+    assert f"{p['repo']}/compare/{p['release']}...v99.0.0" in out
+    assert f"Compare library/{p['library']}" in out and p["library"] in reg.libraries
 
 
-def test_outdated_follows_the_release_of_an_mcp_provider_not_its_branch(reg, capsys, monkeypatch):
-    name, p = next((n, p) for n, p in reg.mcp["providers"].items() if p.get("release") and p.get("upstream"))
+def test_outdated_never_asks_about_the_skill_library(reg, monkeypatch):
     asked = []
-    monkeypatch.setattr(harness, "remote_tip", lambda repo, branch: asked.append(repo) or tips(reg)(repo, branch))
-    monkeypatch.setattr(harness, "fetch_json", answers(reg, **{name: "v99.0.0"}))
-    assert harness.cmd_outdated(reg, argparse.Namespace(markdown=False)) == 3
-    assert reg.upstreams[p["upstream"]]["repo"] not in asked
-    assert f"{p['release']} -> v99.0.0" in capsys.readouterr().out
+    monkeypatch.setattr(harness, "fetch_json", lambda url: asked.append(url) or answers(reg)(url))
+    harness.cmd_outdated(reg, argparse.Namespace(markdown=False))
+    served = {p.get("library") for p in reg.mcp["providers"].values()}
+    origins = [lib["origin"].removeprefix("https://github.com/") for k, lib in reg.libraries.items() if k not in served]
+    assert asked and not [url for url in asked for origin in origins if origin in url]
 
 
 def test_outdated_says_so_when_it_could_not_check(reg, capsys, monkeypatch):
     def offline(url):
         raise OSError("offline")
-    monkeypatch.setattr(harness, "remote_tip", lambda repo, branch: None)
     monkeypatch.setattr(harness, "fetch_json", offline)
     assert harness.cmd_outdated(reg, argparse.Namespace(markdown=False)) == 1
     assert "could not check" in capsys.readouterr().out
@@ -255,16 +321,16 @@ def test_outdated_says_so_when_it_could_not_check(reg, capsys, monkeypatch):
 # ----------------------------------------------------------------------- setup
 def test_setup_runs_the_install_steps_in_order(reg, monkeypatch):
     calls = []
-    for name, status in (("bootstrap", 0), ("mcp_config", 0), ("install_extension", 1), ("doctor", 0), ("verify", 0)):
+    for name, status in (("mcp_config", 0), ("install_extension", 1), ("doctor", 0), ("verify", 0)):
         monkeypatch.setattr(harness, f"cmd_{name}", lambda r, a, n=name, s=status: calls.append(n) or s)
     args = argparse.Namespace(provider=None, blender=None, skip_blender_extension=False)
     assert harness.cmd_setup(reg, args) == 0  # a missing Blender is a hint, not a failed setup
-    assert calls == ["bootstrap", "mcp_config", "install_extension", "doctor", "verify"]
+    assert calls == ["mcp_config", "install_extension", "doctor", "verify"]  # nothing to fetch: the library is already here
 
 
 def test_setup_can_leave_blender_alone_and_reports_failed_checks(reg, monkeypatch):
     calls = []
-    for name, status in (("bootstrap", 0), ("mcp_config", 0), ("install_extension", 0), ("doctor", 1), ("verify", 0)):
+    for name, status in (("mcp_config", 0), ("install_extension", 0), ("doctor", 1), ("verify", 0)):
         monkeypatch.setattr(harness, f"cmd_{name}", lambda r, a, n=name, s=status: calls.append(n) or s)
     args = argparse.Namespace(provider="ahujasid", blender=None, skip_blender_extension=True)
     assert harness.cmd_setup(reg, args) == 1

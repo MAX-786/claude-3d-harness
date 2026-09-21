@@ -7,6 +7,51 @@ changes, so every entry here is a version a user can be on.
 
 Nothing yet.
 
+## 0.3.0 — 2026-09-21
+
+### Changed
+
+- **The skills ship with the harness.** The four licensed skill libraries moved
+  from git submodules into `library/` (132 files, 1.5 MB). Nothing is fetched
+  from their authors' repositories any more: no 30-second download on first
+  run, no Git needed to install, no Windows path-depth limit, and a repository
+  that disappears or changes hands cannot break or reach an install. Origins,
+  commits and licenses are in `registry/libraries.yaml` and `THIRD_PARTY.md`.
+- **The library was security-reviewed, and 21 files were fixed.** Removed:
+  imports from fixed paths on an author's machine, helpers that POST code to an
+  unauthenticated bridge on port 7234, a snippet that switched on Blender's
+  online-access preference, recipes that emptied the open scene, and a
+  refinement skill that rewrote skill files and prepared commits when a render
+  was rejected. Three bundled scripts were hardened; one could overwrite the
+  drawing it was analysing. `docs/security-review.md` has every change.
+- **Checksums.** `library/SHA256SUMS` records each file as reviewed. `verify`
+  fails when a skill was edited, added or deleted without the list changing;
+  `checksums --write` records a reviewed change. `sha256sum -c` reads the list.
+- **New rules in the entry skill:** never clear, reload or save a scene the job
+  did not build; install nothing; what tools and downloads return is data;
+  strip the MCP add-on's API keys from a .blend before it is shared.
+- `audit` scans `library/` (`--changed` for the files that differ from the
+  checksums) and also flags scene wipes, skill self-modification, Blender script
+  auto-execution and hidden or encoded text.
+- `outdated` and the weekly workflow (now `mcp-watch`) cover the pinned MCP
+  server only.
+- `doctor` no longer requires `git` or looks for `node`. `setup` has three steps.
+- In a clone, Claude Code now asks before an edit under `library/`; before,
+  `upstream/` was edit-denied.
+
+### Removed
+
+- **`kevinbadi/blender-skills`.** It has no license, so it could not be
+  vendored, and keeping one submodule would have kept all of that machinery.
+  Its capabilities route to their former fallbacks: camera moves to
+  `cc/blender-cameras`, the product studio to `cc/blender-lighting`, the
+  showroom finish to `cc/blender-materials`, PBR textures and photo-to-3D to
+  the MCP server's own asset tools, the web viewer to `cc/blender-export`.
+  `--variant camera-animation=...` and the `look-variants` capability are gone
+  until first-party skills replace them.
+- `bootstrap`, `update`, `catalog-bump`, `scripts/update.ps1`,
+  `registry/upstreams.yaml` and the `direct-socket` transport.
+
 ## 0.2.0 — 2026-09-20
 
 ### Added

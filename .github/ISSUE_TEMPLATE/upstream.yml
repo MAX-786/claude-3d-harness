@@ -1,5 +1,5 @@
 name: Propose a skill library
-description: A Blender skill library, or a single skill, that the registry should route to
+description: A Blender skill library, or a single skill, that should be added to library/
 labels: [upstream]
 body:
   - type: input
@@ -13,7 +13,7 @@ body:
     id: license
     attributes:
       label: License
-      description: A library without a license can only ever be referenced, never adapted, and may be dropped. Say "none" if there is none.
+      description: Libraries are copied into this repository, which only a license that allows copying permits (MIT, Apache-2.0, BSD, CC0 and the like). Without one it cannot be added. Say "none" if there is none.
     validations:
       required: true
   - type: textarea

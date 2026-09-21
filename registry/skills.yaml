@@ -1,21 +1,19 @@
-# Catalog of every SKILL.md shipped by the upstreams (plus a few reference docs).
+# Catalog of every SKILL.md in library/ (plus a few reference docs).
 # `harness.py verify` fails if an entry points at a missing file and warns when
-# an upstream ships a SKILL.md that is not listed here (drift after an update).
+# the library holds a SKILL.md that is not listed here.
 #
-# id      <upstream key>/<skill directory>. The file is
-#         <upstream path>/<skills_root>/<directory>/SKILL.md unless `path`
-#         (relative to the upstream root) overrides it.
+# id      <library key>/<skill folder>. The file is
+#         library/<key>/<folder>/SKILL.md unless `path` (relative to
+#         library/<key>/) overrides it.
 # status  active    routable through registry/capabilities.yaml
-#         chained   loaded by another upstream skill (`via`), never routed directly
-#         excluded  never loaded under the harness (`reason` says why)
+#         chained   loaded by another library skill (`via`), never routed directly
+#         excluded  kept in the library but never loaded (`reason` says why)
 # kind    skill (default) | reference (a supporting doc, not a SKILL.md)
 # requires
 #   mcp      MCP providers that expose the tools this skill needs
 #   env      environment variables the user must already have set
 #   bins     executables that must be on PATH
-#   python   true when bundled scripts need the upstream's python_deps
-# transport  mcp (default) | direct-socket (bundled scripts talk to the Blender
-#            addon socket on port 9876 themselves, bypassing the MCP server)
+#   python   true when bundled scripts need the library's python_deps
 # notes   adaptation notes printed by `harness.py resolve` when the skill is selected
 
 skills:
@@ -30,16 +28,27 @@ skills:
       Mesh, light, camera, render and animation work has no structured tool, so
       the cc recipes run through execute_blender_code as that skill's
       capability-gap case. Always release the Blender instance before the final reply.
+      Its node layout reference was written for its author: "the user's" style rules
+      there (short Chinese frame labels among them) are that author's. Label frames in
+      the language of the person you are working for, and treat the layout rules as
+      defaults. Never enable script auto-run for a downloaded or appended asset, and
+      ask before relinking external files or baking, clearing or resetting a cache.
   newo/asset-workflows:
     status: active
     kind: reference
-    path: skills/blender-mcp/references/asset-workflows.md
+    path: blender-mcp/references/asset-workflows.md
     summary: Poly Haven, Sketchfab, Hyper3D and Hunyuan3D asset tools of the primary MCP.
     requires: {mcp: [newo-ether]}
+    notes: >-
+      Hyper3D and Hunyuan3D are paid services, and image-conditioned generation
+      uploads the reference images to them. Use them only when the user asked for
+      generation and the service is already configured in Blender's add-on panel;
+      say which images will leave the machine before you start. Never ask for a key
+      in chat.
   newo/render-workflows:
     status: active
     kind: reference
-    path: skills/blender-mcp/references/render-workflows.md
+    path: blender-mcp/references/render-workflows.md
     summary: Render configuration and viewport verification through the primary MCP.
     requires: {mcp: [newo-ether]}
 
@@ -48,7 +57,7 @@ skills:
     status: active
     summary: Execution conventions - fresh namespace per call, GEO-/MAT-/LGT- naming, world reset, dimension lookup, visual validation checkpoint.
     notes: >-
-      Upstream orchestrator. Under the harness its routing table is advisory:
+      The library's own orchestrator. Under the harness its routing table is advisory:
       the load plan decides which skills are read. Keep its code-execution
       rules, naming conventions and visual validation checkpoint.
   cc/blender-pro-workflow:
@@ -61,9 +70,9 @@ skills:
     status: active
     summary: Diagnose a sub-par result, pick the failing dimension, repair, re-validate.
     notes: >-
-      This skill can propose patching skill files, versioning and release
-      commits. upstream/ is read-only here: record lessons in notes/lessons.md
-      and skip its docs/version/release steps.
+      Adapted from the original, whose loop went on to patch skill files, bump
+      versions and prepare commits; those phases were removed. Record the lesson
+      in the job report and, in a clone, in notes/lessons.md.
 
   # ------------------------------------------------------ cc: core production
   cc/blender-modeling:
@@ -75,18 +84,30 @@ skills:
   cc/blender-lighting:
     status: active
     summary: Three-point, HDRI, studio, cinematic and subject-class lighting profiles.
+    notes: >-
+      Its HDRI and studio recipes clear the World's nodes and remove lights named
+      LGT-key, LGT-fill and LGT-rim. In a scene this job did not build, give the
+      scene a new World and new light names instead.
   cc/blender-cameras:
     status: active
     summary: Focal length, depth of field, composition, tracking, animated cameras.
   cc/blender-rendering:
     status: active
     summary: Cycles/EEVEE settings, sampling, denoising, colour management, still and animation output.
+    notes: >-
+      Its GPU recipe changes Blender's Cycles device preferences, which apply to the
+      whole machine. Set scene.cycles.device = 'GPU' and leave the preferences alone
+      unless the user asks; report any render setting you change in an existing scene.
   cc/blender-animation:
     status: active
     summary: Keyframes, F-curves, easing, shape keys, drivers, NLA.
   cc/blender-export:
     status: active
     summary: glTF/GLB, FBX, OBJ, USD, STL export settings and validation.
+    notes: >-
+      Its pre-export checklist applies modifiers and transforms and merges vertices on
+      the source mesh. On geometry this job did not build, export with
+      export_apply=True or work on a duplicate.
   cc/blender-uv-texturing:
     status: active
     summary: UV unwrap, projection, decals, baking, lightmaps, glTF-ready textures.
@@ -102,7 +123,7 @@ skills:
     requires: {python: true}
     notes: >-
       It chain-loads the cc reconstruction stack by bare name; resolve those
-      names inside upstream/cc-blender-skill. Load cc/blender-skill-harmonizer
+      names inside library/cc. Load cc/blender-skill-harmonizer
       first: it is the hub that sequences the stack.
   cc/wireframe-to-3d:
     status: active
@@ -115,8 +136,8 @@ skills:
   cc/mascot-logo-reconstruction:
     status: active
     summary: Fail-gated 1:1 reconstruction of mascots, logos and flat brand characters.
-  # `via` names the upstream skill that refers to each of these by bare name
-  # (checked against the SKILL.md cross-references at the cataloged commit).
+  # `via` names the skill that refers to each of these by bare name
+  # (checked against the SKILL.md cross-references at the imported commit).
   cc/reference-analysis-validator: {status: chained, via: cc/reference-to-3d, summary: "Source manifests, masks, IoU/SSIM overlay validation.", requires: {python: true}}
   cc/contour-to-mesh:              {status: chained, via: cc/reference-to-3d, summary: "Mesh surfaces built from extracted 2D contours.", requires: {python: true}}
   cc/orthographic-registration:    {status: chained, via: cc/reference-to-3d, summary: "Front/side/back/top views in one coordinate contract.", requires: {python: true}}
@@ -130,11 +151,6 @@ skills:
   cc/texture-state-animation:      {status: chained, via: cc/blender-skill-harmonizer, summary: "Registered texture-state transitions without popping.", requires: {python: true}}
   cc/orbital-hud-motion:           {status: chained, via: cc/blender-skill-harmonizer, summary: "Source-derived orbital HUD and aura motion."}
   cc/closed-surface-uv-coverage:   {status: chained, via: cc/blender-uv-texturing, summary: "Front/back/side texture coverage audit for closed assets."}
-  cc/wireframe-to-3d-legacy:
-    status: excluded
-    path: skill/wireframe-to-3d/SKILL.md
-    summary: First single-skill prototype of wireframe-to-3d.
-    reason: Superseded by plugin/skills/wireframe-to-3d; same skill name, older content.
 
   # ------------------------------------------------------ cc: knowledge (docs)
   cc/knowledge-compositing:
@@ -177,71 +193,15 @@ skills:
     summary: Procedural Principled materials, UV unwrap, AO/normal/diffuse baking, texture painting.
   gaius/blender-lighting:
     status: active
-    summary: Deep lighting reference (portrait patterns, product setups); has no frontmatter description upstream.
-  gaius/root-duplicate:
-    status: excluded
-    path: skill/SKILL.md
-    summary: Byte-identical copy of blender-arch at the skills root.
-    reason: Duplicate of gaius/blender-arch.
-
-  # ---------------------------------------------------------------------- kb
-  kb/turntable:         {status: active, summary: "360-degree product orbit.", requires: {bins: [ffmpeg]}}
-  kb/perfect-loop:      {status: active, summary: "Seamless 360 loop whose first and last frames match.", requires: {bins: [ffmpeg]}}
-  kb/slow-zoom:         {status: active, summary: "Slow push-in toward a hero detail.", requires: {bins: [ffmpeg]}}
-  kb/dolly-rotate:      {status: active, summary: "Forward dolly combined with rotation around the subject.", requires: {bins: [ffmpeg]}}
-  kb/crane-shot:        {status: active, summary: "Low-to-high rising reveal.", requires: {bins: [ffmpeg]}}
-  kb/dynamic-full-loop: {status: active, summary: "Speed-ramped loop showing every side including top and bottom.", requires: {bins: [ffmpeg]}}
-  kb/polyhaven-studio-setup:
-    status: active
-    transport: direct-socket
-    summary: HDRI-lit product studio with optional PBR ground; curated studio HDRI list.
-    requires: {bins: [node]}
-  kb/polyhaven-scene-builder:
-    status: active
-    transport: direct-socket
-    summary: Product scene from Poly Haven HDRI, textured ground or pedestal, optional props.
-    requires: {bins: [node]}
-  kb/polyhaven-texture-apply:
-    status: active
-    transport: direct-socket
-    summary: Apply a Poly Haven PBR texture set to an object.
-    requires: {bins: [node]}
-  kb/polyhaven-material-swap:
-    status: active
-    transport: direct-socket
-    summary: Render one product across several Poly Haven materials.
-    requires: {bins: [node]}
-  kb/polyhaven-hdri-showcase:
-    status: active
-    transport: direct-socket
-    summary: Render one product across several HDRIs into a comparison grid.
-    requires: {bins: [node]}
-  kb/product-polish:
-    status: active
-    transport: direct-socket
-    summary: Import a GLB/GLTF and apply a glossy product finish with studio lighting.
-    requires: {bins: [node]}
-  kb/threejs-export:
-    status: active
-    transport: direct-socket
-    summary: Export GLB plus a ready-to-open Three.js viewer page.
-    requires: {bins: [node]}
-  kb/image-to-3d:
-    status: active
-    summary: One photo to a textured 3D model through the Meshy API, imported into Blender.
-    requires: {env: [MESHY_API_KEY]}
-    notes: Paid third-party service. Use only when the user asked for it and MESHY_API_KEY is already set in their environment.
-  kb/multi-image-to-3d:
-    status: active
-    summary: One to four photos to a higher-accuracy 3D model through the Meshy API.
-    requires: {env: [MESHY_API_KEY]}
-    notes: Paid third-party service. Use only when the user asked for it and MESHY_API_KEY is already set in their environment.
-  kb/blender-toolkit:
-    status: excluded
-    summary: Copy of Dev-GOM blender-toolkit (WebSocket addon, Mixamo retargeting).
-    reason: Needs its own Blender addon and WebSocket bridge, which would be a second execution layer next to the single MCP server.
+    summary: Deep lighting reference (portrait patterns, product setups); has no frontmatter description.
 
   # ---------------------------------------------------------------------- jo
   jo/blender:
     status: active
     summary: Parametric design workflow - analyze reference, build simple, verify from several angles, iterate; surface pattern library.
+    notes: >-
+      Its milestone saves and restores are void here. save_as_mainfile turns the
+      milestone into the open document, and open_mainfile throws away everything
+      unsaved and ends the MCP instance claim. Do not call either, and do not clear
+      the scene or start a new file as its workflow suggests: build in a new
+      collection and delete only objects this job created, never by name prefix.
