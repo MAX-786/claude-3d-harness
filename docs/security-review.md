@@ -1,15 +1,16 @@
 # Security review of the skill library
 
-**Reviewed:** 2026-09-21, for version 0.3.0, when the four skill libraries moved
+**Reviewed:** 2026-09-21, for version 0.3.0, when the five skill libraries moved
 from git submodules into `library/`. Carried out with Claude Code; every finding
 that led to a change was checked against the file before anything was edited.
 
 **Result:** nothing malicious was found: no exfiltration, no credential access,
 no hidden or encoded text, no instruction trying to steer the reviewer. What was
 found is what you would expect from skills written by one person for their own
-machine and an empty scene. Those passages were removed or rewritten, 21 files
-in all. The remaining 111 files are byte-identical to the commit they were
-imported from.
+machine and an empty scene. Those passages were removed or rewritten: 30 files
+changed and 9 removed. 117 files are byte-identical to the commit they were
+imported from, and 2 were written for this repository (the notice in
+`library/kb` and a template lifted out of a removed script).
 
 A review can miss things, and this one covers the files as they were on that
 day. [SECURITY.md](../SECURITY.md) says what the harness does and does not
@@ -28,6 +29,7 @@ code does, and by what its prose tells the agent to do.
 | --- | --- | --- | --- | --- |
 | `cc` | 106 (78 text, 28 WebP images) | all text files | 12, and 2 scripts removed | RobLe3/cc-blender-skill at `11016c9a5847` |
 | `gaius` | 12 | all | 9 | Gaius114/blender-claude-mcp at `bb19815283c5` |
+| `kb` | 17 | all | 9, 7 scripts removed, 1 template added | kevinbadi/blender-skills at `b2f0f816d320` |
 | `jo` | 6 | all | 0 | jithinolickal/blender at `6bfca4973e70` |
 | `newo` | 8 | all | 0 | newo-ether/blender-mcp at `37acac7fd25d` (v1.18.0) |
 
@@ -35,8 +37,8 @@ code does, and by what its prose tells the agent to do.
    commits, not copied from a checkout, and each was checked against the blob id
    its author published. Symbolic links and nested repositories would have
    stopped the import; there were none.
-2. **Five review passes** (two over `cc`, two over `gaius`, one over `jo` and
-   `newo`), each reading every text file from the first line to the last (the Italian prose included) against the
+2. **Six review passes** (two over `cc`, two over `gaius`, one over `jo` and
+   `newo`, one over `kb`), each reading every text file from the first line to the last (the Italian prose included) against the
    list below, and reporting findings by file and line.
 3. **A pattern scan** over every text file (`harness.py audit`), including
    zero-width, bidirectional and Unicode tag characters and long encoded runs.
@@ -95,6 +97,26 @@ scripts), they are few and the tables below say what they do.
 | `source-part-segmentation/scripts/seeded_part_masks.py` | A part name is reduced to its last path component | The name comes from a manifest that may ship with a third-party asset pack; `../` would have placed a file outside `--out-dir` |
 | `closed-surface-uv-coverage/scripts/surface_texture_coverage_audit.py` | Parses only the arguments after `--` | Inside Blender, `sys.argv` holds Blender's own flags; argparse would raise `SystemExit`, which can end a live session |
 
+### kb: scripts that drove Blender behind the MCP server's back
+
+Seven of its fifteen skills were one line long in effect: "run this Node
+script". Each script opened a TCP socket to the Blender add-on (port 9876) and
+sent it commands itself.
+
+| File | Change | Why |
+| --- | --- | --- |
+| seven `scripts/*.js` | Removed | They are a second way to run code in Blender, outside the MCP server: the user is asked to allow `node script.js`, never shown the Python it sends, and the server's instance claim is bypassed. They built that Python by pasting command-line text and add-on replies into string literals (`bpy.data.materials.get("${matName}")`, `filepath="${pyPath}"`), so a quote in an asset name, an object name or a path became code |
+| `polyhaven-studio-setup`, `polyhaven-scene-builder`, `polyhaven-texture-apply`, `polyhaven-material-swap`, `polyhaven-hdri-showcase`, `product-polish`, `threejs-export` (SKILL.md) | Rewritten: the same parameters, presets and asset ids, with the Blender recipes lifted out of the scripts into the skill as steps for the MCP tools | So that the skills still work without the scripts, and every step is visible and asks for permission. Each file says at its top what was changed |
+| `product-polish` | No longer empties the scene by default, rewrites only the imported model's materials, and adds its lights beside the ones that exist | The script deleted every object unless told not to, stripped the normal and roughness maps from **every** material in the file, and removed **every** light |
+| `polyhaven-material-swap`, `polyhaven-hdri-showcase` | No longer set Cycles device preferences; render settings are recorded and restored; the showcase copies the scene's World first and gives it back | The scripts switched the compute device for the whole machine, left the scene at their own render settings, and left it lit by whichever HDRI came last |
+| `threejs-export` | The viewer is a fixed template (`assets/viewer.html`) with four named placeholders; only the named product objects are exported and the user's selection is put back | The script assembled the HTML from command-line text (`<title>${modelName}</title>`), exported every mesh in the file and left everything deselected |
+| `multi-image-to-3d` | "Meshy API Key: Retrieved from memory (reference_meshy_api.md)" became "already set in the environment variable" | It sent the agent to its own memory files for a credential, and taught that keys belong there |
+| `image-to-3d` | "or passed directly" removed from the key line; both Meshy skills now say that the photos are uploaded to a paid third party | It invited a key in chat or on a command line |
+| `image-to-3d`, `multi-image-to-3d` | The import snippets no longer clear the scene; downloads go to `<JOB_DIR>` instead of `/Users/<author>/Blender Test/output/` | One deleted the selection after select-all, the other removed every object in the file (all scenes, no undo) |
+
+The six camera-move skills are unchanged: `bpy` only, nothing deleted, nothing
+sent anywhere.
+
 ### jo and newo: no file changes
 
 Both are byte-identical to their origin. What the review found in them is
@@ -117,7 +139,10 @@ handled by notes that every load plan prints (`registry/skills.yaml`):
 | --- | --- | --- |
 | Recipes that clear the World's nodes, remove lights named `LGT-*`, reuse a camera or material by name, or apply modifiers to the source mesh | `cc/blender-lighting`, `cc/blender-export`, `gaius/blender-lighting`, `gaius/blender-texture`, `gaius/blender-sculpt` and others | The entry skill's rule "The user's scene and files are not yours to clear", plus a note on the skills where it matters most. Rewriting every recipe is a change to the skills' content, which is the next step, not this one |
 | Scene-wide settings changed and not restored (engine, samples, frame range, fps), and Cycles device preferences | several `cc` and `gaius` skills | The same rule: report every such change, leave preferences alone |
-| Outputs written to `/tmp/...` | most `cc` skills | The entry skill's "Output paths" rule |
+| Outputs written to `/tmp/...` or `~/Desktop/Blender Videos/` | most `cc` skills, the six `kb` camera moves | The entry skill's "Output paths" rule, and a note on the camera moves |
+| The camera moves set the frame range, fps, render size and active camera, and `turntable` adds five lights and recolours the World's background | `kb` camera moves | A note on each: report the settings, skip the lighting step in a scene that is already lit |
+| The Meshy skills put the API key on a `curl` command line through `${MESHY_API_KEY}` | `kb/image-to-3d`, `kb/multi-image-to-3d` | The shell expands it from the environment, so it never appears in the conversation; it is visible to other processes of the same user while `curl` runs. Notes restrict the skills to jobs where the user asked for generation |
+| The web viewer loads Three.js from cdn.jsdelivr.net at a pinned version, without an integrity hash (import maps do not support one) | `kb/threejs-export` | The skill tells the user. Self-hosting the two files is the fix for a page that matters |
 | `allowed-tools: ... Bash ...` in the frontmatter of the `cc` and `gaius` skills | 39 files | Inert: the harness reads these files, it never registers them as Claude Code skills. `verify` fails if a root `skills/` folder appears. Do not copy a library folder into `~/.claude/skills` |
 | `scipy` imports in two `gaius/blender-procedural` snippets (Blender's Python has no scipy) | `gaius/blender-procedural` | The entry skill's "Install nothing" rule |
 | `blender-research` sends the subject of the job to a web search | `gaius/blender-research` | The entry skill's rule that what tools return is data. For a confidential product, say so in the prompt and Claude will skip the research stage |
@@ -126,11 +151,13 @@ handled by notes that every load plan prints (`registry/skills.yaml`):
 
 ## Outside the library
 
-**The unlicensed library was not imported.** `kevinbadi/blender-skills`
-publishes no license, so its author keeps all rights and its files may not be
-copied or adapted. Its sixteen skills left the catalog with the submodules.
-Their capabilities route to the skills that were their fallbacks; `look-variants`
-had none and was removed.
+**`library/kb` is here by permission, not under a license.**
+`kevinbadi/blender-skills` publishes no license. Its files were imported on the
+maintainer's statement that the author gave permission privately; this review
+did not see that permission and says nothing about it. The folder's `LICENSE`
+and [THIRD_PARTY.md](../THIRD_PARTY.md) state that the MIT license does not
+cover it. `blender-toolkit/`, a copy of a third author's project inside that
+repository, was not imported.
 
 **The MCP server and its Blender extension are not vendored.** They are fetched
 from the pinned release in `registry/mcp.yaml`; the extension is checked against

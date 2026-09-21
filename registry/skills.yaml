@@ -195,6 +195,60 @@ skills:
     status: active
     summary: Deep lighting reference (portrait patterns, product setups); has no frontmatter description.
 
+  # ---------------------------------------------------------------------- kb
+  # Not under an open license: see library/kb/LICENSE and registry/libraries.yaml.
+  kb/turntable:
+    status: active
+    summary: 360-degree product orbit.
+    requires: {bins: [ffmpeg]}
+    notes: &kb_camera >-
+      Its renders go to ~/Desktop/Blender Videos: use the job folder instead. It
+      sets the scene's frame range, fps, render size and active camera: report
+      that. In a scene that is already lit, skip its lighting step and leave the
+      World's background alone. Render the frame range only after a still and a
+      sparse contact sheet were approved.
+  kb/perfect-loop:      {status: active, summary: "Seamless 360 loop whose first and last frames match.", requires: {bins: [ffmpeg]}, notes: *kb_camera}
+  kb/slow-zoom:         {status: active, summary: "Slow push-in toward a hero detail.", requires: {bins: [ffmpeg]}, notes: *kb_camera}
+  kb/dolly-rotate:      {status: active, summary: "Forward dolly combined with rotation around the subject.", requires: {bins: [ffmpeg]}, notes: *kb_camera}
+  kb/crane-shot:        {status: active, summary: "Low-to-high rising reveal.", requires: {bins: [ffmpeg]}, notes: *kb_camera}
+  kb/dynamic-full-loop: {status: active, summary: "Speed-ramped loop showing every side including top and bottom.", requires: {bins: [ffmpeg]}, notes: *kb_camera}
+  kb/polyhaven-studio-setup:
+    status: active
+    summary: HDRI-lit product studio with optional PBR ground; curated studio HDRI list.
+  kb/polyhaven-scene-builder:
+    status: active
+    summary: Product scene from Poly Haven HDRI, textured ground or pedestal, optional props.
+  kb/polyhaven-texture-apply:
+    status: active
+    summary: Apply a Poly Haven PBR texture set to an object.
+  kb/polyhaven-material-swap:
+    status: active
+    summary: Render one product across several Poly Haven materials, then restore the scene.
+  kb/polyhaven-hdri-showcase:
+    status: active
+    summary: Render one product across several HDRIs, then give the scene its World back.
+  kb/product-polish:
+    status: active
+    summary: Import a GLB/GLTF and apply a glossy product finish with studio lighting, to the imported model only.
+  kb/threejs-export:
+    status: active
+    summary: Export GLB plus a Three.js viewer page written from a fixed template.
+  kb/image-to-3d:
+    status: active
+    summary: One photo to a textured 3D model through the Meshy API, imported into Blender.
+    requires: {env: [MESHY_API_KEY]}
+    notes: &kb_meshy >-
+      Paid third-party service, and the user's photos are uploaded to it. Use it
+      only when the user asked for generation and MESHY_API_KEY is already set in
+      their environment; say which images will leave the machine before you
+      start. The key is read by the shell from the environment: never ask for
+      it, print it, or write it anywhere.
+  kb/multi-image-to-3d:
+    status: active
+    summary: One to four photos to a higher-accuracy 3D model through the Meshy API.
+    requires: {env: [MESHY_API_KEY]}
+    notes: *kb_meshy
+
   # ---------------------------------------------------------------------- jo
   jo/blender:
     status: active

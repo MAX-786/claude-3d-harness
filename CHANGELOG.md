@@ -11,19 +11,27 @@ Nothing yet.
 
 ### Changed
 
-- **The skills ship with the harness.** The four licensed skill libraries moved
-  from git submodules into `library/` (132 files, 1.5 MB). Nothing is fetched
+- **The skills ship with the harness.** The five skill libraries moved from git
+  submodules into `library/` (149 files, 1.6 MB). Nothing is fetched
   from their authors' repositories any more: no 30-second download on first
   run, no Git needed to install, no Windows path-depth limit, and a repository
   that disappears or changes hands cannot break or reach an install. Origins,
   commits and licenses are in `registry/libraries.yaml` and `THIRD_PARTY.md`.
-- **The library was security-reviewed, and 21 files were fixed.** Removed:
+- **The library was security-reviewed, and 30 files were fixed.** Removed:
   imports from fixed paths on an author's machine, helpers that POST code to an
   unauthenticated bridge on port 7234, a snippet that switched on Blender's
-  online-access preference, recipes that emptied the open scene, and a
-  refinement skill that rewrote skill files and prepared commits when a render
-  was rejected. Three bundled scripts were hardened; one could overwrite the
-  drawing it was analysing. `docs/security-review.md` has every change.
+  online-access preference, recipes that emptied the open scene, an instruction
+  to fetch an API key from agent memory, and a refinement skill that rewrote
+  skill files and prepared commits when a render was rejected. Three bundled
+  scripts were hardened; one could overwrite the drawing it was analysing.
+  `docs/security-review.md` has every change.
+- **The Poly Haven, product-finish and web-viewer skills no longer need Node.**
+  Their seven bundled scripts opened Blender's add-on socket themselves, outside
+  the MCP server and its permission prompts, and were only usable under the
+  fallback provider. The skills were rewritten as MCP steps and now work under
+  both providers. `product-polish` no longer empties the scene or touches
+  materials and lights it did not import; the look-variant skills put the
+  scene's World and render settings back.
 - **Checksums.** `library/SHA256SUMS` records each file as reviewed. `verify`
   fails when a skill was edited, added or deleted without the list changing;
   `checksums --write` records a reviewed change. `sha256sum -c` reads the list.
@@ -39,18 +47,18 @@ Nothing yet.
 - In a clone, Claude Code now asks before an edit under `library/`; before,
   `upstream/` was edit-denied.
 
+- **`library/kb` is included by permission, and says so.** Its origin publishes
+  no license. `library/kb/LICENSE`, `THIRD_PARTY.md` and the README state that
+  this repository's MIT license does not cover that folder, and `verify` prints
+  the basis each time it runs. `image-to-3d` gains the MCP server's own
+  generation tools as a fallback.
+
 ### Removed
 
-- **`kevinbadi/blender-skills`.** It has no license, so it could not be
-  vendored, and keeping one submodule would have kept all of that machinery.
-  Its capabilities route to their former fallbacks: camera moves to
-  `cc/blender-cameras`, the product studio to `cc/blender-lighting`, the
-  showroom finish to `cc/blender-materials`, PBR textures and photo-to-3D to
-  the MCP server's own asset tools, the web viewer to `cc/blender-export`.
-  `--variant camera-animation=...` and the `look-variants` capability are gone
-  until first-party skills replace them.
 - `bootstrap`, `update`, `catalog-bump`, `scripts/update.ps1`,
-  `registry/upstreams.yaml` and the `direct-socket` transport.
+  `registry/upstreams.yaml`, the `direct-socket` transport, and the copy of
+  `blender-toolkit` that one library carried (another author's project; it was
+  never routed).
 
 ## 0.2.0 — 2026-09-20
 

@@ -18,6 +18,7 @@ stages:
   - {id: refine,    capability: refinement,         min_profile: standard, optional: true, when: "a checkpoint fails twice on the same defect"}
   - {id: spin,      capability: camera-animation,   optional: true, when: "the user asks for a turntable, loop or reveal"}
   - {id: spin-qa,   capability: animation-qa,       min_profile: standard, optional: true, when: "a camera move was rendered"}
+  - {id: variants,  capability: look-variants,      optional: true, when: "the user wants colour, finish or lighting options side by side"}
   - {id: web,       capability: web-viewer,         optional: true, when: "the product should be viewable in a browser"}
 alternatives:
   - {capability: logo-mascot, when: "the product is a brand mascot or logo object"}

@@ -7,7 +7,7 @@ they are worth knowing before you install it:
 
 - **`execute_blender_code` runs Python inside Blender** with your user's rights.
   Claude Code asks before each call unless you chose to always allow it.
-- **The 3D skills are instructions.** They were written by four other authors,
+- **The 3D skills are instructions.** They were written by five other authors,
   live in this repository under `library/`, and Claude follows them while it has
   that code-execution tool.
 - **The MCP server and its Blender extension are third-party code**, fetched
@@ -37,8 +37,10 @@ they are worth knowing before you install it:
   before it is installed. The server wheel's SHA-256 is recorded there too.
 - In a clone, `.claude/settings.json` makes Claude Code ask before any edit
   under `library/`, whatever else you have allowed.
-- Skills that needed their own bridge, add-on or socket to Blender were not
-  imported, and the bridge helpers inside imported skills were removed.
+- Nothing but the one MCP server talks to Blender. Skills that needed their own
+  add-on were not imported; the bridge helpers and the Node scripts that opened
+  Blender's socket themselves were removed, and their skills rewritten to go
+  through the server.
 - The MCP server's telemetry is switched off in the generated `.mcp.json`.
 - The tests never collect, import or run anything under `library/`.
 

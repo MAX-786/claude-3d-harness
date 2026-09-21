@@ -72,9 +72,11 @@ Blender 4.2 on Linux. If you changed `.claude-plugin/`, also run
 
 And two that a tool cannot check for you:
 
-- **Only copy what a license lets you copy.** A public repository without a
-  license is not open source: its author keeps all rights. That is why one
-  library the harness used to reference is absent ([THIRD_PARTY.md](THIRD_PARTY.md)).
+- **Only copy what a license or a permission lets you copy.** A public
+  repository without a license is not open source: its author keeps all rights.
+  `library/kb` is such a case, included by permission and labelled so
+  ([THIRD_PARTY.md](THIRD_PARTY.md)). A pull request that adds files without an
+  open license needs the permission in writing, in the pull request.
 - **A skill change is a code change.** Claude follows these files with
   code-execution rights inside Blender, so read a skill diff the way you would
   read a diff to a script that runs on your users' machines.
@@ -99,7 +101,9 @@ Apache-2.0 asks for a notice in that file saying it was changed.
 ## Adding a library
 
 1. Check the license. MIT, Apache-2.0, BSD, CC0 and the like allow copying. No
-   license means no.
+   license means no, unless the author gives permission in writing: then the
+   entry is `license: permission` with a `license_note`, and the folder's
+   `LICENSE` says that the MIT license does not cover it.
 2. Import only the skill folders, from a named commit, plus the `LICENSE` file as
    `library/<key>/LICENSE`. Leave out installers, add-ons, bridges and servers:
    the harness runs one MCP server and nothing else.

@@ -59,8 +59,20 @@ def test_routing_to_an_excluded_skill_fails_verify(reg, capsys):
 def test_every_library_names_its_origin_and_ships_its_license(reg):
     for key, lib in reg.libraries.items():
         assert lib["origin"].startswith("https://") and re.fullmatch(r"[0-9a-f]{40}", lib["imported_at"]), key
-        assert lib["license"] not in ("", "NONE"), f"{key}: only licensed libraries may be vendored"
+        assert lib["license"] not in ("", "NONE"), f"{key}: vendor only what a license or a permission lets you copy"
         assert (harness.LIB / key / "LICENSE").is_file(), key
+        if lib["license"] == "permission":  # not an open license: the registry and the folder must both say so
+            assert lib.get("license_note"), key
+            notice = (harness.LIB / key / "LICENSE").read_text(encoding="utf-8")
+            assert "does NOT cover this folder" in notice, f"{key}: its LICENSE must say the MIT license does not apply"
+
+
+def test_verify_states_the_basis_of_a_library_that_has_no_open_license(reg, capsys):
+    key = next(k for k, lib in reg.libraries.items() if lib["license"] == "permission")
+    assert harness.cmd_verify(reg, argparse.Namespace(strict=True)) == 0
+    assert f"[INFO] library {key}: The origin publishes no license." in capsys.readouterr().out
+    del reg.libraries[key]["license_note"]
+    assert harness.cmd_verify(reg, argparse.Namespace(strict=False)) == 1
 
 
 def test_a_library_folder_without_a_registry_entry_fails_verify(reg, capsys):
@@ -122,7 +134,7 @@ def test_a_missing_provider_file_falls_back(reg, monkeypatch):
 
 
 def with_variants(reg) -> tuple[str, str, str]:
-    """No shipped capability has variants right now, so the tests give one capability two of them."""
+    """A capability with two variants that does not depend on which ones the registry ships."""
     first, second = [sid for sid, e in reg.skills.items() if e["status"] == "active" and not e.get("requires")][:2]
     reg.capabilities["test-move"] = {"summary": "x", "default": "orbit", "variants": {
         "orbit": {"provider": first, "when": "x"}, "push-in": {"provider": second, "when": "y"}}}

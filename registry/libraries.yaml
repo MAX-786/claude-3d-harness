@@ -3,7 +3,9 @@
 # The files live in this repository. Nothing is fetched at install time and
 # nothing updates by itself. Each library was imported once from the repository
 # named in `origin`, byte for byte, at the commit in `imported_at`; its license
-# file sits next to it as library/<key>/LICENSE. library/SHA256SUMS records
+# file sits next to it as library/<key>/LICENSE. A library whose `license` is
+# `permission` is not under an open license: `license_note` says on what basis
+# it is here, and `harness.py verify` prints that note every time. library/SHA256SUMS records
 # every file as it was last reviewed, and `harness.py verify` fails when a file
 # no longer matches (see "Changing a skill" in CONTRIBUTING.md).
 #
@@ -52,6 +54,30 @@ libraries:
     notes: >-
       Skills are written in Italian, have no `name` frontmatter, and run
       760-1470 lines each: load one only for the stage that needs it.
+
+  kb:
+    origin: https://github.com/kevinbadi/blender-skills
+    imported_at: "b2f0f816d320b56ae86d52597a35284e0e6cc929"
+    imported_from: .
+    omitted: >-
+      README.md, and blender-toolkit/, a copy of another author's project that
+      this library's author cannot give permission for (it needs its own Blender
+      addon and WebSocket bridge, so it was never routed either).
+    changes: >-
+      Security fixes after import, listed file by file in docs/security-review.md:
+      the seven Node scripts that drove Blender's add-on socket directly were
+      removed and their skills rewritten to go through the MCP server; an API
+      key is no longer fetched from agent memory; scene wipes and paths on the
+      author's machine are gone.
+    license: permission
+    license_note: >-
+      The origin publishes no license. Included on the maintainer's statement
+      that the author gave permission privately; the text is not published. The
+      MIT license of this repository does not cover library/kb: see
+      library/kb/LICENSE before reusing anything from it.
+    dialect: ahujasid
+    language: en
+    role: Product-shot camera moves, Poly Haven studio helpers, photo-to-3D.
 
   jo:
     origin: https://github.com/jithinolickal/blender
