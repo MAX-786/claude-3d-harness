@@ -151,13 +151,14 @@ handled by notes that every load plan prints (`registry/skills.yaml`):
 
 ## Outside the library
 
-**`library/kb` is here by permission, not under a license.**
-`kevinbadi/blender-skills` publishes no license. Its files were imported on the
-maintainer's statement that the author gave permission privately; this review
-did not see that permission and says nothing about it. The folder's `LICENSE`
-and [THIRD_PARTY.md](../THIRD_PARTY.md) state that the MIT license does not
-cover it. `blender-toolkit/`, a copy of a third author's project inside that
-repository, was not imported.
+**`library/kb` carries no LICENSE file at its origin.**
+`kevinbadi/blender-skills` publishes no license file, and nothing in its README
+addresses licensing. Its files were vendored on the author's statement, given
+directly to this project's maintainer, that the work is MIT licensed; this
+review did not see that grant and says nothing about it beyond noting it is
+unpublished. `library/kb/LICENSE` carries the MIT text under the author's name.
+`blender-toolkit/`, a copy of a third author's project inside that repository,
+was not imported.
 
 **The MCP server and its Blender extension are not vendored.** They are fetched
 from the pinned release in `registry/mcp.yaml`; the extension is checked against

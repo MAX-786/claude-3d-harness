@@ -47,11 +47,10 @@ Nothing yet.
 - In a clone, Claude Code now asks before an edit under `library/`; before,
   `upstream/` was edit-denied.
 
-- **`library/kb` is included by permission, and says so.** Its origin publishes
-  no license. `library/kb/LICENSE`, `THIRD_PARTY.md` and the README state that
-  this repository's MIT license does not cover that folder, and `verify` prints
-  the basis each time it runs. `image-to-3d` gains the MCP server's own
-  generation tools as a fallback.
+- **`library/kb` is vendored MIT, and says where that grant came from.** Its
+  origin ships no LICENSE file; `library/kb/LICENSE`, `THIRD_PARTY.md` and the
+  README state that the license was given directly to the maintainer.
+  `image-to-3d` gains the MCP server's own generation tools as a fallback.
 
 ### Removed
 

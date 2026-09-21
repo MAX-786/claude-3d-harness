@@ -1,22 +1,37 @@
 # Third-party components
 
 The MIT license in [LICENSE](LICENSE) covers the files this project wrote. The
-skill libraries under `library/` were written by other people. Four are included
-under the open licenses they were published with; each of those license files
-sits next to its library, unchanged, as `library/<key>/LICENSE`. **One,
-`library/kb`, is not under an open license at all**: see below before you reuse
-anything from this repository.
+skill libraries under `library/` were written by other people and are included
+under the licenses they were published or licensed with. Each library's license
+file sits next to it as `library/<key>/LICENSE`.
 
 | Path | Imported from | License | Copyright | Commit |
 | --- | --- | --- | --- | --- |
 | `library/cc` | https://github.com/RobLe3/cc-blender-skill (`plugin/skills`, one file of `knowledge/`) | MIT | (c) 2026 RobLe3 | `11016c9a5847` |
 | `library/gaius` | https://github.com/Gaius114/blender-claude-mcp (`skill`) | MIT | (c) 2026 Josia | `bb19815283c5` |
-| `library/kb` | https://github.com/kevinbadi/blender-skills (15 skill folders) | **none published; included by permission** | kevinbadi, all rights reserved | `b2f0f816d320` |
+| `library/kb` | https://github.com/kevinbadi/blender-skills (15 skill folders) | MIT | (c) 2026 kevinbadi | `b2f0f816d320` |
 | `library/jo` | https://github.com/jithinolickal/blender (`skills`) | Apache-2.0 | jithinolickal | `6bfca4973e70` |
 | `library/newo` | https://github.com/newo-ether/blender-mcp (`skills`) | MIT | (c) 2025 Siddharth Ahuja | `37acac7fd25d` (v1.18.0) |
 
 `uv run scripts/harness.py list libraries` prints the current values, and
 `registry/libraries.yaml` says what was left out of each import.
+
+## `library/kb` carries no LICENSE file at its origin
+
+`kevinbadi/blender-skills` has no LICENSE file, nothing about licensing in its
+README, and GitHub reports none (checked 2026-09-21). Without a published grant,
+its author keeps all rights by default, and the repository being public does
+not change that.
+
+`library/kb/LICENSE` was written for this repository: it carries the standard
+MIT text, on the author's statement, given directly to this project's
+maintainer, that the work is MIT licensed. If you rely on that grant
+independent of this repository — a fork, a reuse elsewhere — get it from the
+author directly, the same way.
+
+`blender-toolkit/` in that origin repository is a copy of a third author's
+project; kevinbadi cannot license it on their own behalf, and it was not
+imported.
 
 ## What was changed after import
 
@@ -32,29 +47,6 @@ anything from this repository.
   file (`threejs-export/assets/viewer.html`) was added, carrying the HTML
   template that used to live inside one of those scripts. Each rewritten skill
   says so at its top.
-
-## `library/kb` is not open source
-
-`kevinbadi/blender-skills` publishes no license: no license file, nothing in its
-README, none reported by GitHub (checked 2026-09-21). Without one its author
-keeps all rights, and the repository being public changes nothing about that.
-
-Its files are in this repository, and were edited, **on the maintainer's
-statement that the author gave permission privately**. The text of that
-permission is not published, so nobody but the two of them can say what it
-covers. What follows from that:
-
-- The MIT license of this repository does **not** cover `library/kb`. It gives
-  you no right to copy, modify or redistribute those files outside this project.
-  `library/kb/LICENSE` says the same, and `harness.py verify` prints a reminder.
-- If you fork this repository or reuse parts of it, leave `library/kb` out, or
-  ask its author for permission of your own. The harness keeps working without
-  it: every capability it provides has a fallback except `look-variants`
-  (`registry/capabilities.yaml`).
-- `blender-toolkit/` in that repository is a copy of a third author's project.
-  Its author could not give permission for it, and it was not imported.
-- If the author publishes a license, this section and `library/kb/LICENSE`
-  should be replaced by it.
 
 ## Runtime downloads
 
