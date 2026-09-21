@@ -1,6 +1,6 @@
 ---
 name: blender-harness
-description: Entry point for every 3D or Blender task in this repository - modeling, materials, lighting, cameras, rendering, animation, product shots, environments, cinematic scenes, exports. Classifies the job (fast, standard or cinematic), picks a workflow, asks the registry which upstream skills to load, then drives Blender through the single `blender` MCP server with render, inspect and refine checkpoints. Use it whenever the user asks to create, change, light, render, animate or export anything in 3D, even if they never say "Blender".
+description: Entry point for every 3D or Blender task in this repository - modeling, materials, lighting, cameras, rendering, animation, product shots, environments, cinematic scenes, exports. Classifies the job (fast, standard or cinematic), picks a workflow, asks the registry which library skills to load, then drives Blender through the single `blender` MCP server with render, inspect and refine checkpoints. Use it whenever the user asks to create, change, light, render, animate or export anything in 3D, even if they never say "Blender".
 ---
 
 # Blender harness (opened as a project)

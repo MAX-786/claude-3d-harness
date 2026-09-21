@@ -1,0 +1,80 @@
+# The skill libraries under library/. One entry per folder: library/<key>/.
+#
+# The files live in this repository. Nothing is fetched at install time and
+# nothing updates by itself. Each library was imported once from the repository
+# named in `origin`, byte for byte, at the commit in `imported_at`; its license
+# file sits next to it as library/<key>/LICENSE. library/SHA256SUMS records
+# every file as it was last reviewed, and `harness.py verify` fails when a file
+# no longer matches (see "Changing a skill" in CONTRIBUTING.md).
+#
+# Keys are short on purpose: they namespace skill ids (cc/blender-lighting vs
+# gaius/blender-lighting), which is how same-named skills coexist.
+
+libraries:
+  cc:
+    origin: https://github.com/RobLe3/cc-blender-skill
+    imported_at: "11016c9a5847897491dde935c346571bd7548e3d"
+    imported_from: plugin/skills   # plus knowledge/12-compositing/00-overview.md
+    omitted: >-
+      evals/ folders and EVALS_README.md (they measure how a skill's description
+      triggers when it is registered with Claude Code, which never happens here),
+      and the superseded prototype under skill/.
+    changes: >-
+      Security fixes after import, listed file by file in docs/security-review.md:
+      the refinement skill no longer patches skill files or prepares releases, the
+      world reset keeps the World it finds, and three scripts were hardened.
+    license: MIT
+    dialect: ahujasid
+    language: en
+    role: >-
+      Primary skill library (v1.3.0, 30 skills): orchestration conventions,
+      core production domains, reference-locked reconstruction, refinement loop.
+    python_deps: [opencv-python, numpy, scipy, Pillow, scikit-image]
+
+  gaius:
+    origin: https://github.com/Gaius114/blender-claude-mcp
+    imported_at: "bb19815283c5761793e4478dfd96c1ec8d5ff2c6"
+    imported_from: skill
+    omitted: >-
+      skill/SKILL.md, a byte-identical copy of blender-arch/SKILL.md. The HTTP
+      bridge, the Blender addon, kernel/ and scripts/ of that repository were
+      never used by the harness and were not imported.
+    changes: >-
+      Security fixes after import, listed file by file in docs/security-review.md:
+      the HTTP bridge helpers, the imports from fixed paths on the author's machine,
+      a preference change and the scene-wiping recipes were removed.
+    license: MIT
+    dialect: blender-lab
+    language: it
+    role: >-
+      Specialist modeling skills the primary library lacks: architecture,
+      procedural, geometry nodes, sculpting, rigging, physics, spatial math.
+    notes: >-
+      Skills are written in Italian, have no `name` frontmatter, and run
+      760-1470 lines each: load one only for the stage that needs it.
+
+  jo:
+    origin: https://github.com/jithinolickal/blender
+    imported_at: "6bfca4973e7086696b08b108bfe6aae62ede33c0"
+    imported_from: skills
+    license: Apache-2.0
+    dialect: ahujasid
+    language: en
+    role: Parametric design workflow (slats, planks, organic surfaces), one skill.
+
+  newo:
+    origin: https://github.com/newo-ether/blender-mcp
+    imported_at: "37acac7fd25d424b23c8a84f27d6c16c848d810d"   # tag v1.18.0
+    imported_from: skills
+    omitted: >-
+      agents/openai.yaml, an interface descriptor for another agent product.
+      The MCP server itself is not vendored: it is fetched from the pinned
+      release in registry/mcp.yaml.
+    license: MIT
+    dialect: ahujasid
+    language: en
+    role: >-
+      Usage skill for the primary MCP server (a fork of ahujasid/blender-mcp
+      that keeps its tool names and adds structured node, documentation and
+      instance tools). When registry/mcp.yaml pins a newer release of that
+      server, compare this skill with the one the release ships.

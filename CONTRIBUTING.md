@@ -20,8 +20,8 @@ up a working copy, and what a change has to pass.
 
 ## Set up a working copy
 
-You need Git, [uv](https://docs.astral.sh/uv/getting-started/installation/) and,
-for anything that touches Blender, Blender 4.2 or newer.
+You need [uv](https://docs.astral.sh/uv/getting-started/installation/) and, for
+anything that touches Blender, Blender 4.2 or newer. Git is only needed to clone.
 
 ```bash
 git clone https://github.com/MAX-786/claude-3d-harness.git
@@ -29,9 +29,9 @@ cd claude-3d-harness
 uv run scripts/harness.py setup
 ```
 
-On Windows, clone to a short path (for example `C:\dev\claude-3d-harness`), and
-`.\scripts\install.ps1` does the same as the last line. Pass
-`--skip-blender-extension` to leave Blender alone.
+On Windows, `.\scripts\install.ps1` does the same as the last line. Pass
+`--skip-blender-extension` to leave Blender alone. Nothing else is fetched: the
+skill library is part of the repository.
 
 If you also have the plugin installed, disable it while you work in the clone.
 Otherwise two Blender MCP servers compete for the same Blender.
@@ -52,8 +52,9 @@ Blender 4.2 on Linux. If you changed `.claude-plugin/`, also run
 | Task | Where |
 | --- | --- |
 | Prefer another skill for a capability | Swap `provider` and `fallbacks` in `registry/capabilities.yaml` |
-| Handle a new upstream skill | Add it to `registry/skills.yaml` as `active`, `chained` or `excluded` |
-| Add an upstream library | `git submodule add`, then an entry in `registry/upstreams.yaml` with its dialect, catalog and routes |
+| Fix or improve a skill | Edit it under `library/`, then follow "Changing a skill" below |
+| Catalog a new skill | Add it to `registry/skills.yaml` as `active`, `chained` or `excluded` |
+| Add a library | "Adding a library" below |
 | Pin a newer MCP release | Update `release`, the URLs and both SHA-256 values in `registry/mcp.yaml`, then `harness.py mcp-config --write` |
 | Change how much a profile spends | `registry/profiles.yaml` |
 | Add or reorder stages of a job type | `workflows/<name>.yaml` |
@@ -63,17 +64,52 @@ Blender 4.2 on Linux. If you changed `.claude-plugin/`, also run
 - One provider per capability, or per variant. Alternatives go in `fallbacks`.
 - One MCP server, named `blender`. `.mcp.json` is generated from
   `registry/mcp.yaml`; do not edit it by hand.
-- Every SKILL.md an upstream ships is cataloged.
+- Every SKILL.md in `library/` is cataloged.
+- Every file in `library/` matches `library/SHA256SUMS`, every library has an
+  entry in `registry/libraries.yaml`, and every library ships its `LICENSE`.
 - The entry skill stays at the root as `SKILL.md`, with no root `skills/` folder.
   That layout gives the plugin its `/claude-3d-harness` command.
 
 And two that a tool cannot check for you:
 
-- **`upstream/` is read-only.** A fix to a skill's content belongs in that
-  skill's own repository. What you learned goes to `notes/lessons.md`.
-- **Never copy from `upstream/blender-skills`.** It has no license, so its author
-  keeps all rights. Describe its skills in your own words
-  ([THIRD_PARTY.md](THIRD_PARTY.md)).
+- **Only copy what a license lets you copy.** A public repository without a
+  license is not open source: its author keeps all rights. That is why one
+  library the harness used to reference is absent ([THIRD_PARTY.md](THIRD_PARTY.md)).
+- **A skill change is a code change.** Claude follows these files with
+  code-execution rights inside Blender, so read a skill diff the way you would
+  read a diff to a script that runs on your users' machines.
+
+## Changing a skill
+
+```bash
+# edit the file under library/, then:
+uv run scripts/harness.py audit --changed   # flags the lines a reviewer should read
+uv run scripts/harness.py checksums --write # record the library as reviewed
+uv run scripts/harness.py verify --strict
+```
+
+Commit the skill and `library/SHA256SUMS` together. `verify` fails when they
+disagree, so nobody can change a skill without the list changing in the same
+pull request. Keep the change free of the things
+[docs/security-review.md](docs/security-review.md) removed: paths on your own
+machine, package installs, network helpers, steps that clear or save the user's
+scene, instructions to edit skill files. If you change a file of `library/jo`,
+Apache-2.0 asks for a notice in that file saying it was changed.
+
+## Adding a library
+
+1. Check the license. MIT, Apache-2.0, BSD, CC0 and the like allow copying. No
+   license means no.
+2. Import only the skill folders, from a named commit, plus the `LICENSE` file as
+   `library/<key>/LICENSE`. Leave out installers, add-ons, bridges and servers:
+   the harness runs one MCP server and nothing else.
+3. Review every file against the list in
+   [docs/security-review.md](docs/security-review.md), and add what you found and
+   changed to that document.
+4. Add the entry to `registry/libraries.yaml` (origin, commit, license, dialect,
+   language, what was omitted), catalog the skills in `registry/skills.yaml`, and
+   route the ones that fill a gap in `registry/capabilities.yaml`.
+5. `uv run scripts/harness.py checksums --write`, then `verify --strict`.
 
 ## Writing a lesson
 
@@ -91,22 +127,22 @@ and a short title in bold, then say what went wrong and what fixed it:
 `resolve` reads the bold part, so keep that form. `verify` warns when the id is
 not in the catalog.
 
-## Moving an upstream forward
+## Taking an improvement from a library's origin
 
-Upstream skills are instructions Claude follows with code-execution rights
-inside Blender, so nothing updates by itself. A weekly workflow runs
-`harness.py outdated` and keeps one issue listing the pins that are behind.
+The library follows nobody's branch. `uv run scripts/harness.py list libraries`
+prints each origin and the commit it was imported from, so
+`<origin>/compare/<commit>...main` shows what its author has done since. Port
+what is worth having by hand, as a skill change like any other. Do not re-import
+a folder wholesale: that would undo the security fixes.
 
-```bash
-uv run scripts/harness.py outdated          # read-only: which pins are behind?
-uv run scripts/harness.py update cc         # move one upstream to its branch tip and audit the diff
-uv run scripts/harness.py catalog-bump cc   # after reading the compare link: accept the new commit
-git add registry upstream/cc-blender-skill
-uv run scripts/harness.py update --rollback # or return to the pinned commits
-```
+## Moving the MCP server forward
 
-Read the compare link and the audit output before `catalog-bump`. The audit
-flags are prompts for a person, not verdicts.
+The server and its Blender extension are the one thing still fetched at install
+time, from a pinned release. A weekly workflow runs `harness.py outdated` and
+keeps one issue open while the pin is behind. To move it: update `release`,
+both URLs and both SHA-256 values in `registry/mcp.yaml`, run
+`harness.py mcp-config --write`, and compare `library/newo` with the skill the
+new release ships.
 
 ## Releases
 

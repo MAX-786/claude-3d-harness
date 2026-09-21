@@ -6,23 +6,22 @@
 
 Run with uv so the one dependency resolves itself:
 
-    uv run scripts/harness.py setup                       the whole install on any OS: the four steps below plus verify
+    uv run scripts/harness.py setup                       the whole install on any OS: the steps below plus verify
     uv run scripts/harness.py doctor                      environment checks
-    uv run scripts/harness.py bootstrap                   init git + submodules at the cataloged commits
-    uv run scripts/harness.py verify                      registry vs. upstream trees
+    uv run scripts/harness.py verify                      registry vs. the skill library, and the library vs. its checksums
     uv run scripts/harness.py resolve -w product -p standard
     uv run scripts/harness.py list capabilities
     uv run scripts/harness.py where blender-lighting
     uv run scripts/harness.py mcp-config --provider ahujasid --write
     uv run scripts/harness.py install-extension           Blender-side extension of the active MCP provider
-    uv run scripts/harness.py outdated                    read-only: are the pins behind what upstream publishes now?
-    uv run scripts/harness.py update [key ...]            move upstreams forward, then verify + audit the changes
-    uv run scripts/harness.py audit --since-cataloged
-    uv run scripts/harness.py catalog-bump cc
+    uv run scripts/harness.py outdated                    read-only: is the pinned MCP server behind its latest release?
+    uv run scripts/harness.py audit --changed             flag risky patterns in the skill files edited since the last review
+    uv run scripts/harness.py checksums --write           record the skill library as reviewed
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import platform
@@ -37,12 +36,13 @@ import yaml
 
 ROOT = Path(os.path.abspath(__file__)).parents[1]
 REG = ROOT / "registry"
+LIB = ROOT / "library"
+SUMS = LIB / "SHA256SUMS"  # `sha256sum -c` format, so the library can be checked without this script
 ENTRY_SKILL = ROOT / "SKILL.md"  # plugin root: a lone SKILL.md is invoked as /claude-3d-harness
 PROJECT_SKILL = ROOT / ".claude" / "skills" / "blender-harness" / "SKILL.md"  # pointer for clones
 PLUGIN_DIR = ROOT / ".claude-plugin"
 LESSONS = ROOT / "notes" / "lessons.md"
 STATUSES = {"active", "chained", "excluded"}
-MAX_ROOT_LEN = 150  # git refuses a submodule git dir longer than ~220 chars on Windows
 
 
 # --------------------------------------------------------------------- loading
@@ -56,9 +56,9 @@ def load_yaml(path: Path) -> dict:
 
 class Registry:
     def __init__(self) -> None:
-        self.upstreams: dict = load_yaml(REG / "upstreams.yaml")["upstreams"]
-        for up in self.upstreams.values():  # an unquoted all-digit commit id would load as a number
-            up["cataloged_at"] = str(up["cataloged_at"])
+        self.libraries: dict = load_yaml(REG / "libraries.yaml")["libraries"]
+        for lib in self.libraries.values():  # an unquoted all-digit commit id would load as a number
+            lib["imported_at"] = str(lib["imported_at"])
         self.skills: dict = load_yaml(REG / "skills.yaml")["skills"]
         self.capabilities: dict = load_yaml(REG / "capabilities.yaml")["capabilities"]
         prof = load_yaml(REG / "profiles.yaml")
@@ -69,9 +69,7 @@ class Registry:
 
     def skill_relpath(self, sid: str) -> Path:
         key, _, name = sid.partition("/")
-        up, entry = self.upstreams[key], self.skills[sid]
-        rel = entry.get("path") or "/".join(x for x in (up["skills_root"].strip("./"), name, "SKILL.md") if x)
-        return Path(up["path"]) / rel
+        return Path(LIB.name) / key / (self.skills[sid].get("path") or f"{name}/SKILL.md")
 
     def providers_of(self, cap: str) -> list[str]:
         c = self.capabilities[cap]
@@ -99,19 +97,37 @@ class Registry:
         return None
 
 
-def git(*args: str, cwd: Path = ROOT, check: bool = False) -> str | None:
-    try:
-        out = subprocess.run(["git", "-c", "core.longpaths=true", *args], cwd=cwd, text=True,
-                             capture_output=True, check=check, encoding="utf-8", errors="replace")
-    except (OSError, subprocess.CalledProcessError) as exc:
-        if check:
-            raise SystemExit(f"git {' '.join(args)} failed: {getattr(exc, 'stderr', exc)}")
-        return None
-    return out.stdout.strip() if out.returncode == 0 else None
-
-
 def rel(p: Path) -> str:
     return p.as_posix()
+
+
+def sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def library_files() -> dict[str, Path]:
+    """Every file of the skill library except the checksum list, keyed by its path relative to library/."""
+    files = {rel(f.relative_to(LIB)): f for f in LIB.rglob("*") if f.is_file() and f != SUMS}
+    return dict(sorted(files.items()))
+
+
+def recorded_sums() -> dict[str, str]:
+    """library/SHA256SUMS as {path relative to library/: digest}; empty when the file is missing."""
+    try:
+        lines = SUMS.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return {}
+    pairs = (ln.split(maxsplit=1) for ln in lines if ln.strip())
+    return {name.lstrip("*"): digest for digest, name in pairs}
+
+
+def changed_files() -> dict[str, str]:
+    """Library files that differ from the recorded checksums: {path: modified | not recorded | missing}."""
+    recorded, files = recorded_sums(), library_files()
+    state = {name: "not recorded" if name not in recorded else "modified"
+             for name, f in files.items() if recorded.get(name) != sha256(f)}
+    state.update({name: "missing" for name in recorded if name not in files})
+    return dict(sorted(state.items()))
 
 
 def harness_version() -> str:
@@ -154,38 +170,33 @@ class Report:
 # ---------------------------------------------------------------------- verify
 def cmd_verify(reg: Registry, args) -> int:
     r = Report()
-    present = {k: (ROOT / u["path"]).is_dir() and any((ROOT / u["path"]).iterdir()) for k, u in reg.upstreams.items()}
-    gitlinks = {}
-    for ln in (git("ls-files", "-s", "--", "upstream") or "").splitlines():
-        mode, sha, _, path = ln.split(maxsplit=3)
-        if mode == "160000":
-            gitlinks[path] = sha
+    present = {k: (LIB / k).is_dir() and any((LIB / k).iterdir()) for k in reg.libraries}
 
-    for key, up in reg.upstreams.items():
-        if up.get("dialect") not in reg.mcp["dialects"]:
-            r.line("FAIL", f"upstream {key}: unknown dialect '{up.get('dialect')}'")
-        if up["license"] == "NONE":
-            r.line("INFO", f"upstream {key}: {' '.join(up.get('license_note', 'no license upstream').split())}")
-        link = gitlinks.get(up["path"])
-        if link and link != up["cataloged_at"]:
-            r.line("WARN", f"upstream {key}: pinned commit {link[:12]} differs from cataloged_at {up['cataloged_at'][:12]}")
+    for key, lib in reg.libraries.items():
+        if lib.get("dialect") not in reg.mcp["dialects"]:
+            r.line("FAIL", f"library {key}: unknown dialect '{lib.get('dialect')}'")
         if not present[key]:
-            r.line("FAIL", f"upstream {key}: {up['path']} is empty - run: uv run scripts/harness.py setup")
-            continue
-        head = git("rev-parse", "HEAD", cwd=ROOT / up["path"])
-        if head and head != up["cataloged_at"]:
-            changed = git("diff", "--name-only", up["cataloged_at"], head, "--", "*.md", "*.py", "*.js", cwd=ROOT / up["path"])
-            n = len(changed.splitlines()) if changed else "?"
-            r.line("WARN", f"upstream {key}: checked out {head[:12]}, catalog reconciled at {up['cataloged_at'][:12]} "
-                           f"({n} skill-relevant file(s) changed). Review {up['repo']}/compare/{up['cataloged_at'][:12]}...{head[:12]} "
-                           f"then run: harness.py catalog-bump {key}")
+            r.line("FAIL", f"library {key}: {rel(LIB.relative_to(ROOT))}/{key} is missing or empty - restore it from git, or reinstall the plugin")
+        elif not (LIB / key / "LICENSE").is_file():  # a vendored library ships with the terms it was published under
+            r.line("FAIL", f"library {key}: {rel(LIB.relative_to(ROOT))}/{key}/LICENSE is missing; its {lib.get('license')} license requires the notice")
+    if LIB.is_dir():
+        for d in sorted(p.name for p in LIB.iterdir() if p.is_dir() and p.name not in reg.libraries):
+            r.line("FAIL", f"library/{d} has no entry in registry/libraries.yaml (origin, commit and license are required)")
+
+    # the library as last reviewed: an edit shows up here until `checksums --write` records it
+    if not SUMS.is_file():
+        r.line("FAIL", f"{rel(SUMS.relative_to(ROOT))} is missing - after reviewing the library run: harness.py checksums --write")
+    else:
+        for name, state in changed_files().items():
+            r.line("FAIL", f"library/{name}: {state} since the checksums were recorded - review it (harness.py audit --changed), "
+                           f"then run: harness.py checksums --write")
 
     # catalog entries
-    by_upstream: dict[str, set[str]] = {k: set() for k in reg.upstreams}
+    by_library: dict[str, set[str]] = {k: set() for k in reg.libraries}
     for sid, e in reg.skills.items():
         key = sid.partition("/")[0]
-        if key not in reg.upstreams:
-            r.line("FAIL", f"skill {sid}: unknown upstream key '{key}'")
+        if key not in reg.libraries:
+            r.line("FAIL", f"skill {sid}: unknown library key '{key}'")
             continue
         if e.get("status") not in STATUSES:
             r.line("FAIL", f"skill {sid}: status must be one of {sorted(STATUSES)}")
@@ -197,19 +208,16 @@ def cmd_verify(reg: Registry, args) -> int:
             if prov not in reg.mcp["providers"]:
                 r.line("FAIL", f"skill {sid}: requires unknown MCP provider '{prov}'")
         path = reg.skill_relpath(sid)
-        by_upstream[key].add(rel(path))
+        by_library[key].add(rel(path))
         if present[key] and not (ROOT / path).is_file():
             r.line("FAIL", f"skill {sid}: missing file {rel(path)}")
 
-    # drift: SKILL.md files upstream ships that the catalog does not know
-    for key, up in reg.upstreams.items():
-        if not present[key]:
-            continue
-        base = ROOT / up["path"]
-        for f in sorted(base.rglob("SKILL.md")):
+    # drift: SKILL.md files in the library that the catalog does not know
+    for key in reg.libraries:
+        for f in sorted((LIB / key).rglob("SKILL.md")) if present[key] else []:
             p = rel(f.relative_to(ROOT))
-            if "/.git/" not in p and p not in by_upstream[key]:
-                r.line("WARN", f"drift: {p} exists upstream but is not cataloged in registry/skills.yaml")
+            if p not in by_library[key]:
+                r.line("WARN", f"drift: {p} is in the library but is not cataloged in registry/skills.yaml")
 
     # capabilities
     referenced: set[str] = set()
@@ -335,15 +343,14 @@ def pick(reg: Registry, cap: str, variant: str | None, active: str | None):
     return None, variant, skipped
 
 
-def missing_upstreams(reg: Registry) -> list[str]:
-    return [u["path"] for u in reg.upstreams.values()
-            if not ((ROOT / u["path"]).is_dir() and any((ROOT / u["path"]).iterdir()))]
+def missing_libraries(reg: Registry) -> list[str]:
+    return [f"{LIB.name}/{k}" for k in reg.libraries if not ((LIB / k).is_dir() and any((LIB / k).iterdir()))]
 
 
 def cmd_resolve(reg: Registry, args) -> int:
-    if missing_upstreams(reg):
-        raise SystemExit(f"upstream skills are not checked out ({', '.join(missing_upstreams(reg))}). "
-                         f"Run this first: uv run scripts/harness.py bootstrap")
+    if missing_libraries(reg):
+        raise SystemExit(f"the skill library is incomplete ({', '.join(missing_libraries(reg))}). It ships with the "
+                         f"harness: restore it from git, or reinstall the plugin.")
     if args.profile not in reg.profiles:
         raise SystemExit(f"unknown profile '{args.profile}' (have: {', '.join(reg.profile_order)})")
     if bool(args.workflow) == bool(args.capabilities):
@@ -403,12 +410,10 @@ def cmd_resolve(reg: Registry, args) -> int:
         return 0
 
     def tags(sid: str) -> str:
-        up = reg.upstreams[sid.partition("/")[0]]
-        t = [f"lang:{up['language']}"] if up["language"] != "en" else []
-        if reg.mcp["dialects"][up["dialect"]]["map"]:
-            t.append(f"dialect:{up['dialect']}")
-        if reg.skills[sid].get("transport") == "direct-socket":
-            t.append("direct-socket")
+        lib = reg.libraries[sid.partition("/")[0]]
+        t = [f"lang:{lib['language']}"] if lib["language"] != "en" else []
+        if reg.mcp["dialects"][lib["dialect"]]["map"]:
+            t.append(f"dialect:{lib['dialect']}")
         return f"  [{' '.join(t)}]" if t else ""
 
     prefix = f"mcp__{reg.mcp['server_name']}__"
@@ -439,19 +444,13 @@ def cmd_resolve(reg: Registry, args) -> int:
 
     required = [row["sid"] for row in rows]
     print("\nADAPTATION NOTES (for the skills in LOAD IN ORDER; resolve an optional capability with --add to get its notes)")
-    if any(reg.skills[s].get("transport") == "direct-socket" for s in used):
-        print("  [direct-socket] " + (
-            "bundled node script connects to the addon socket (port 9876) itself; it may be run as documented."
-            if active == "ahujasid" else
-            "bundled node script bypasses the MCP server and was only validated against the ahujasid addon. "
-            "Do not run it: take its parameters, asset ids and step order, and perform the steps with MCP tools."))
     for key in dict.fromkeys(s.partition("/")[0] for s in required):
-        up = reg.upstreams[key]
-        d = reg.mcp["dialects"][up["dialect"]]
-        if up.get("notes"):
-            print(f"  [{key}] {' '.join(up['notes'].split())}")
+        lib = reg.libraries[key]
+        d = reg.mcp["dialects"][lib["dialect"]]
+        if lib.get("notes"):
+            print(f"  [{key}] {' '.join(lib['notes'].split())}")
         if d["map"]:
-            print(f"  [{key}] tool dialect '{up['dialect']}': {d['summary']} Translate:")
+            print(f"  [{key}] tool dialect '{lib['dialect']}': {d['summary']} Translate:")
             for src, dst in d["map"].items():
                 dst = " ".join(str(dst).split())
                 print(f"      {d['prefix']}{src} -> {prefix + dst if dst in reg.mcp['canonical_tools'] else dst}")
@@ -463,12 +462,12 @@ def cmd_resolve(reg: Registry, args) -> int:
             print(f"  [{sid}] {' '.join(e['notes'].split())}")
         req = e.get("requires", {})
         for b in req.get("bins", []):
-            if not shutil.which(b) and not (b == "node" and active != "ahujasid"):
+            if not shutil.which(b):
                 print(f"  [{sid}] needs `{b}` on PATH: MISSING")
         for v in req.get("env", []):
             print(f"  [{sid}] needs env {v}: {'set' if os.environ.get(v) else 'NOT SET - skip this skill and tell the user'}")
     for key in dict.fromkeys(s.partition("/")[0] for s in required if reg.skills[s].get("requires", {}).get("python")):
-        deps = " ".join(f"--with {d}" for d in reg.upstreams[key].get("python_deps", []))
+        deps = " ".join(f"--with {d}" for d in reg.libraries[key].get("python_deps", []))
         print(f"  [{key}] bundled Python scripts need third-party packages. Run them as: uv run {deps} python <script> ...")
     if problems:
         print("\nSUBSTITUTIONS")
@@ -493,10 +492,10 @@ def cmd_resolve(reg: Registry, args) -> int:
 # ------------------------------------------------------------- list and where
 def cmd_list(reg: Registry, args) -> int:
     what = args.what
-    if what == "upstreams":
-        for k, u in reg.upstreams.items():
+    if what == "libraries":
+        for k, lib in reg.libraries.items():
             n = sum(1 for s in reg.skills if s.startswith(k + "/"))
-            print(f"{k:<6} {u['license']:<11} {u['cataloged_at'][:12]}  {n:>2} entries  {u['repo']}")
+            print(f"{k:<6} {lib['license']:<11} {n:>2} entries  imported from {lib['origin']} at {lib['imported_at'][:12]}")
     elif what == "skills":
         for sid, e in reg.skills.items():
             print(f"{e['status']:<9} {sid:<34} {e.get('summary', '')}")
@@ -526,7 +525,7 @@ def cmd_where(reg: Registry, args) -> int:
         extra = f"via {e['via']}" if e.get("via") else f"excluded: {e['reason']}" if e.get("reason") else f"capabilities: {', '.join(routes) or '-'}"
         print(f"{sid}  [{e['status']}]  {extra}\n  {rel(reg.skill_relpath(sid))}")
     if len(hits) > 1:
-        print("\nSeveral upstreams use this name. Inside an upstream skill, a bare name means the sibling in the SAME upstream.")
+        print("\nSeveral libraries use this name. Inside a library skill, a bare name means the sibling in the SAME library.")
     return 0
 
 
@@ -544,72 +543,8 @@ def cmd_mcp_config(reg: Registry, args) -> int:
     return 0
 
 
-# ------------------------------------------------------------------- bootstrap
-def cmd_bootstrap(reg: Registry, args) -> int:
-    if not shutil.which("git"):
-        raise SystemExit("git is not on PATH")
-    if os.name == "nt" and len(str(ROOT.resolve())) > MAX_ROOT_LEN:
-        raise SystemExit(f"repository path is {len(str(ROOT.resolve()))} characters long. Git cannot create submodule "
-                         f"git directories this deep on Windows. Move the repository to a short path (for example C:\\dev\\claude-3d-harness).")
-    if not (ROOT / ".git").exists():
-        git("init", "-q", "-b", "main", check=True)
-        print("initialised a git repository")
-    git("config", "core.longpaths", "true", check=True)
-    links = {ln.split(maxsplit=3)[3] for ln in (git("ls-files", "-s", "--", "upstream") or "").splitlines() if ln.startswith("160000")}
-    for key, up in reg.upstreams.items():
-        path = up["path"]
-        if path in links:
-            git("submodule", "update", "--init", "--", path, check=True)
-        else:  # fresh checkout without gitlinks, e.g. a GitHub ZIP download
-            target = ROOT / path
-            if target.is_dir() and not any(target.iterdir()):
-                target.rmdir()  # ZIPs carry an empty folder per submodule, which `submodule add` rejects
-            elif target.exists():
-                if (target / up["skills_root"]).is_dir():  # copied in without git metadata, e.g. by a plugin install
-                    print(f"{key:<6} {path:<34} present (copied without git metadata)")
-                    continue
-                raise SystemExit(f"{path} exists, is not empty and is not a registered submodule. Move it away and re-run.")
-            git("submodule", "add", "--force", "-b", up["branch"], up["repo"] + ".git", path, check=True)
-            git("checkout", "-q", up["cataloged_at"], cwd=ROOT / path, check=True)
-            git("add", path, check=True)
-        git("config", "core.longpaths", "true", cwd=ROOT / path)  # `-c` settings do not reach submodule processes
-        head = git("rev-parse", "--short=12", "HEAD", cwd=ROOT / path)
-        print(f"{key:<6} {path:<34} {head}")
-    (ROOT / "output").mkdir(exist_ok=True)
-    return 0
-
-
-# ---------------------------------------------------------------------- update
-def cmd_update(reg: Registry, args) -> int:
-    keys = args.keys or list(reg.upstreams)
-    for key in keys:
-        if key not in reg.upstreams:
-            raise SystemExit(f"unknown upstream '{key}' (have: {', '.join(reg.upstreams)})")
-    paths = [reg.upstreams[k]["path"] for k in keys]
-    if args.rollback:
-        git("submodule", "update", "--init", "--", *paths, check=True)
-        print("submodules reset to the commits pinned in the index")
-        return cmd_verify(reg, args)
-    git("submodule", "update", "--remote", "--", *paths, check=True)
-    moved = [k for k in keys if git("rev-parse", "HEAD", cwd=ROOT / reg.upstreams[k]["path"]) != reg.upstreams[k]["cataloged_at"]]
-    if not moved:
-        print("every upstream is already at its cataloged commit")
-        return 0
-    print(f"moved: {', '.join(moved)}. Nothing is staged or committed yet.\n")
-    status = cmd_verify(reg, args)
-    print()
-    args.keys, args.since_cataloged, args.verbose = moved, True, True
-    cmd_audit(reg, args)
-    print("\nNext: read the compare links above, fix any drift in registry/skills.yaml, then for each accepted upstream:\n"
-          "  uv run scripts/harness.py catalog-bump <key>\n"
-          "  git add registry/upstreams.yaml registry/skills.yaml <upstream path> && git commit\n"
-          "To back out: uv run scripts/harness.py update --rollback")
-    return status
-
-
 # ----------------------------------------------------------- install-extension
 def cmd_install_extension(reg: Registry, args) -> int:
-    import hashlib
     import urllib.request
 
     provider = reg.active_mcp() or reg.mcp["default_provider"]
@@ -634,15 +569,14 @@ def cmd_install_extension(reg: Registry, args) -> int:
     cache = ROOT / ".cache"
     cache.mkdir(exist_ok=True)
     target = cache / ext["url"].rsplit("/", 1)[1]
-    sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()  # noqa: E731
-    if not target.is_file() or sha(target) != ext["sha256"]:
+    if not target.is_file() or sha256(target) != ext["sha256"]:
         print(f"downloading {ext['url']}")
         try:
             urllib.request.urlretrieve(ext["url"], target)
         except OSError as exc:  # URLError included: offline, proxy, release asset moved
             print(f"download failed: {exc}. Nothing was installed.")
             return 1
-    if sha(target) != ext["sha256"]:
+    if sha256(target) != ext["sha256"]:
         target.unlink()
         raise SystemExit("checksum mismatch for the downloaded extension - nothing was installed")
     print(f"checksum ok: {target.name}")
@@ -658,16 +592,15 @@ def cmd_install_extension(reg: Registry, args) -> int:
 # ----------------------------------------------------------------------- setup
 def cmd_setup(reg: Registry, args) -> int:
     """The whole install in one command, the same on every OS. Each step is also a command of its own."""
-    print("== 1/4  upstream libraries")
-    cmd_bootstrap(reg, args)
-    print("\n== 2/4  MCP configuration")
+    print("== 1/3  MCP configuration")
     cmd_mcp_config(reg, argparse.Namespace(provider=args.provider, write=True))
-    print("\n== 3/4  Blender extension")
+    (ROOT / "output").mkdir(exist_ok=True)  # the MCP server's workspace in a clone
+    print("\n== 2/3  Blender extension")
     if args.skip_blender_extension:
         print("skipped (--skip-blender-extension)")
     elif cmd_install_extension(reg, args):
         print("The Blender extension was not installed. Install Blender (or pass --blender <executable>), then re-run setup.")
-    print("\n== 4/4  checks")
+    print("\n== 3/3  checks")
     status = cmd_doctor(reg, args) | cmd_verify(reg, args)
     print("\nSetup finished with open issues: see the FAIL lines above." if status else
           "\nReady. Start Blender, check the BlenderMCP tab in the 3D View sidebar (N), then open Claude Code in this folder.")
@@ -675,11 +608,6 @@ def cmd_setup(reg: Registry, args) -> int:
 
 
 # -------------------------------------------------------------------- outdated
-def remote_tip(repo: str, branch: str) -> str | None:
-    out = git("ls-remote", repo + ".git", f"refs/heads/{branch}")
-    return out.split()[0] if out else None
-
-
 def fetch_json(url: str) -> dict:
     import urllib.request
 
@@ -692,20 +620,11 @@ def fetch_json(url: str) -> dict:
 
 
 def cmd_outdated(reg: Registry, args) -> int:
-    """Compare the pins with what upstream publishes now. Changes nothing. Exit 3 when a pin is behind."""
+    """Compare the MCP server pins with what is published now. Changes nothing. Exit 3 when a pin is behind.
+
+    The skill library is not checked: it lives in this repository and follows nobody's branch.
+    """
     rows, errors = [], []
-    # An upstream that carries a pinned MCP release follows that release, not its branch tip.
-    released = {p["upstream"] for p in reg.mcp["providers"].values() if p.get("release") and p.get("upstream")}
-    for key, up in reg.upstreams.items():
-        if key in released:
-            continue
-        tip = remote_tip(up["repo"], up["branch"])
-        if not tip:
-            errors.append(f"upstream {key}: could not read {up['repo']}")
-        elif tip != up["cataloged_at"]:
-            rows.append({"what": f"upstream {key}", "pinned": up["cataloged_at"][:12], "latest": tip[:12],
-                         "review": f"{up['repo']}/compare/{up['cataloged_at'][:12]}...{tip[:12]}",
-                         "next": f"uv run scripts/harness.py update {key}"})
     for name, p in reg.mcp["providers"].items():
         pypi = next(filter(None, (re.fullmatch(r"([A-Za-z0-9_.-]+)==([\w.]+)", a) for a in p["launch"]["args"])), None)
         try:
@@ -715,8 +634,10 @@ def cmd_outdated(reg: Registry, args) -> int:
                 if latest != p["release"]:
                     rows.append({"what": f"MCP provider {name}", "pinned": p["release"], "latest": latest,
                                  "review": f"{p['repo']}/compare/{p['release']}...{latest}",
-                                 "next": "update release, both URLs and both SHA-256 values in registry/mcp.yaml, move the "
-                                         "submodule to the new tag, then: uv run scripts/harness.py mcp-config --write"})
+                                 "next": "update release, both URLs and both SHA-256 values in registry/mcp.yaml, then: "
+                                         "uv run scripts/harness.py mcp-config --write" +
+                                         (f". Compare library/{p['library']} with the skills the new release ships"
+                                          if p.get("library") else "")})
             elif pypi:
                 latest = fetch_json(f"https://pypi.org/pypi/{pypi.group(1)}/json")["info"]["version"]
                 if latest != pypi.group(2):
@@ -728,8 +649,8 @@ def cmd_outdated(reg: Registry, args) -> int:
 
     if args.markdown:
         if rows:
-            print("These pins are behind what upstream publishes now. Nothing was changed: upstream skills are "
-                  "instructions Claude follows with code-execution rights inside Blender, so each move is reviewed by a person.\n")
+            print("The pinned MCP server is behind what its project publishes now. Nothing was changed: the server and its "
+                  "Blender extension run code on the user's machine, so each move is reviewed by a person.\n")
             print("| Pin | Pinned | Latest | Review |\n| --- | --- | --- | --- |")
             for row in rows:
                 print(f"| {row['what']} | `{row['pinned']}` | `{row['latest']}` | [compare]({row['review']}) |")
@@ -737,7 +658,7 @@ def cmd_outdated(reg: Registry, args) -> int:
             for row in rows:
                 print(f"- **{row['what']}**: {row['next']}")
         else:
-            print("Every pin matches what upstream publishes now.")
+            print("Every MCP server pin matches the latest release.")
         if errors:
             print("\nCould not check:\n\n" + "\n".join(f"- {e}" for e in errors))
     else:
@@ -746,70 +667,71 @@ def cmd_outdated(reg: Registry, args) -> int:
         for e in errors:
             print(f"could not check: {e}")
         print(f"\noutdated: {len(rows)} pin(s) behind, {len(errors)} check(s) failed" if rows or errors else
-              "every pin matches what upstream publishes now")
+              "every MCP server pin matches the latest release")
     return 3 if rows else 1 if errors else 0
 
 
-# ---------------------------------------------------------------- catalog-bump
-def cmd_catalog_bump(reg: Registry, args) -> int:
-    keys = list(reg.upstreams) if args.all else args.keys
-    if not keys:
-        raise SystemExit("name at least one upstream key, or pass --all")
-    path = REG / "upstreams.yaml"
-    text = path.read_text(encoding="utf-8")
-    for key in keys:
-        if key not in reg.upstreams:
-            raise SystemExit(f"unknown upstream '{key}'")
-        head = git("rev-parse", "HEAD", cwd=ROOT / reg.upstreams[key]["path"])
-        if not head:
-            raise SystemExit(f"{key}: submodule is not checked out")
-        pattern = re.compile(rf"(^  {re.escape(key)}:\n(?:(?!^  \S).*\n)*?    cataloged_at: )\S+[^\n]*", re.M)
-        text, n = pattern.subn(rf'\g<1>"{head}"', text, count=1)
-        print(f"{key}: cataloged_at -> {head[:12]}" if n else f"{key}: cataloged_at line not found")
-    path.write_text(text, encoding="utf-8", newline="\n")
-    print("Now commit registry/upstreams.yaml together with the submodule pointer(s).")
-    return 0
+# ------------------------------------------------------------------- checksums
+def cmd_checksums(reg: Registry, args) -> int:
+    """Show which library files differ from library/SHA256SUMS, or record the library as it is now."""
+    if args.write:
+        files = library_files()
+        text = "".join(f"{sha256(f)}  {name}\n" for name, f in files.items())
+        SUMS.write_text(text, encoding="utf-8", newline="\n")
+        print(f"{rel(SUMS.relative_to(ROOT))} written: {len(files)} file(s). Commit it together with the files you changed.")
+        return 0
+    changed = changed_files()
+    for name, state in changed.items():
+        print(f"{state:<13} library/{name}")
+    print(f"{len(changed)} file(s) differ from {rel(SUMS.relative_to(ROOT))}. Review them (harness.py audit --changed), then: "
+          f"harness.py checksums --write" if changed else f"the library matches {rel(SUMS.relative_to(ROOT))}")
+    return 1 if changed else 0
 
 
 # ----------------------------------------------------------------------- audit
 AUDIT = {
-    "network call": r"\b(curl|wget|Invoke-WebRequest|Invoke-RestMethod|requests\.(get|post|put)|urllib\.request|urlopen|fetch\(|https?\.request)",
-    "shell or dynamic execution": r"\b(subprocess\.|os\.system|os\.popen|child_process|execSync|spawn\(|eval\(|exec\()",
-    "secret or credential": r"(?i)(api[_-]?key|access[_-]?token|secret|password|bearer |\.ssh\b|credentials)",
+    "network call": r"\b(curl|wget|Invoke-WebRequest|Invoke-RestMethod|requests\.(get|post|put)|urllib\.request|urlopen|fetch\(|https?\.request|import socket|socket\.(socket|create_connection)\()",
+    "shell or dynamic execution": r"\b(subprocess\.|os\.system|os\.popen|child_process|execSync|spawn\(|eval\(|exec\(|__import__|importlib|pickle\.|marshal\.|ctypes)",
+    "secret or credential": r"(?i)(api[_-]?key|access[_-]?token|secret|password|bearer |\.ssh\b|credentials|os\.environ|getenv)",
     "agent or config tampering": r"(?i)(~/\.claude|\.claude/|settings\.json|CLAUDE\.md|\.mcp\.json|dangerously|bypass permission|ignore (all |any )?(previous|prior|above) instructions|do not (tell|inform|mention)[^.\n]{0,40}\buser)",
-    "install or persistence": r"(?i)(pip3? install|npm (i|install)\b|npx |claude mcp add|claude plugin|schtasks|crontab|reg add|Set-ExecutionPolicy|ln -s)",
-    "destructive file operation": r"(?i)(rm -rf|Remove-Item[^\n]*-Recurse|shutil\.rmtree|os\.remove|fs\.rm|rmdir /s|del /s)",
+    "install or persistence": r"(?i)(pip3? install|npm (i|install)\b|npx |claude mcp add|claude plugin|schtasks|crontab|reg add|Set-ExecutionPolicy|ln -s|addon_install|addon_enable|extension_install|use_scripts_auto_execute|driver_namespace)",
+    "destructive file operation": r"(?i)(rm -rf|Remove-Item[^\n]*-Recurse|shutil\.rmtree|os\.remove|os\.unlink|fs\.rm|rmdir /s|del /s)",
+    "scene or session wipe": r"(read_factory_settings|read_homefile|open_mainfile|save_mainfile|save_as_mainfile|quit_blender|batch_remove|orphans_purge)",
+    "skill self-modification": r"(?i)(git (commit|push|tag)|gh (pr|release) create|patch (the|this) skill|update (the|this) SKILL\.md)",
+    # zero-width and bidirectional controls, Unicode tag characters, and long base64-looking runs
+    "hidden or encoded text": r"[​-‏‪-‮⁠-⁤⁦-⁩﻿\U000e0000-\U000e007f]|[A-Za-z0-9+/]{120,}={0,2}",
 }
-AUDIT_EXT = {".md", ".py", ".js", ".mjs", ".ts", ".sh", ".ps1", ".json", ".yaml", ".yml", ".toml"}
+AUDIT_EXT = {".md", ".py", ".js", ".mjs", ".ts", ".sh", ".ps1", ".json", ".yaml", ".yml", ".toml", ".txt"}
 
 
 def cmd_audit(reg: Registry, args) -> int:
-    keys = args.keys or list(reg.upstreams)
+    """Flag lines a reviewer should read. It finds patterns, not intent: a clean audit is not a clean bill of health."""
+    keys = args.keys or list(reg.libraries)
+    for key in keys:
+        if key not in reg.libraries:
+            raise SystemExit(f"unknown library '{key}' (have: {', '.join(reg.libraries)})")
+    changed = changed_files() if args.changed else None
     total = 0
     for key in keys:
-        up = reg.upstreams[key]
-        base = ROOT / up["path"]
-        if not base.is_dir():
-            print(f"[{key}] not checked out")
-            continue
-        if args.since_cataloged:
-            changed = git("diff", "--name-only", up["cataloged_at"], "HEAD", cwd=base)
-            files = [base / f for f in (changed or "").splitlines()]
-        else:
-            files = [f for f in (base / up["skills_root"]).rglob("*") if "/.git/" not in rel(f)]
-        files = [f for f in files if f.is_file() and f.suffix.lower() in AUDIT_EXT]
-        print(f"[{key}] {len(files)} file(s) scanned" + (" (changed since cataloged_at)" if args.since_cataloged else ""))
-        for f in sorted(files):
+        files = {n: f for n, f in library_files().items() if n.startswith(key + "/") and (changed is None or n in changed)}
+        other = sorted(n for n, f in files.items() if f.suffix.lower() not in AUDIT_EXT and f.name != "LICENSE")
+        files = {n: f for n, f in files.items() if f.suffix.lower() in AUDIT_EXT}
+        print(f"[{key}] {len(files)} file(s) scanned" + (" (changed since the checksums were recorded)" if args.changed else ""))
+        for name, f in files.items():
             lines = f.read_text(encoding="utf-8", errors="replace").splitlines()
             for label, pat in AUDIT.items():
                 hits = [(i, ln.strip()) for i, ln in enumerate(lines, 1) if re.search(pat, ln)]
                 if not hits:
                     continue
                 total += len(hits)
-                print(f"  {label:<28} {rel(f.relative_to(ROOT))}  x{len(hits)}")
+                print(f"  {label:<28} library/{name}  x{len(hits)}")
                 for i, ln in hits[: (len(hits) if args.verbose else 2)]:
+                    if label.startswith("hidden"):  # show what a terminal would not
+                        ln = ln.encode("ascii", "backslashreplace").decode()
                     print(f"      {i}: {ln[:150]}")
-    print(f"\n{total} line(s) flagged. Flags are prompts for human review, not verdicts: upstream skills are "
+        if other:
+            print(f"  not text, so not scanned: {len(other)} file(s)" + (": " + ", ".join(other) if args.verbose else ""))
+    print(f"\n{total} line(s) flagged. Flags are prompts for human review, not verdicts: library skills are "
           f"instructions Claude will follow with code-execution rights inside Blender.")
     return 0
 
@@ -888,15 +810,14 @@ def cmd_doctor(reg: Registry, args) -> int:
     r = Report()
     kind = "plugin install" if "/.claude/plugins/" in rel(ROOT) else "checkout"  # bug reports need to say which
     r.line("INFO", f"claude-3d-harness {harness_version()} ({kind}) on {platform.platform()}, Python {platform.python_version()}")
-    for tool, why in (("git", "submodules"), ("uv", "this script and the MCP server launcher")):
-        r.line("OK" if shutil.which(tool) else "FAIL", f"{tool}: {shutil.which(tool) or 'not found'} ({why})")
-    for tool, why in (("node", "kb Poly Haven / product-polish scripts under the ahujasid provider"), ("ffmpeg", "kb camera-move video encoding")):
-        r.line("OK" if shutil.which(tool) else "WARN", f"{tool}: {shutil.which(tool) or 'not found'} (optional: {why})")
-    n = len(str(ROOT.resolve()))
-    if os.name == "nt":
-        r.line("FAIL" if n > MAX_ROOT_LEN else "WARN" if n > 100 else "OK",
-               f"repository path length: {n} characters (submodules need <= {MAX_ROOT_LEN}; tools like node and ffmpeg prefer < 100)")
-        r.line("OK" if git("config", "--get", "core.longpaths") == "true" else "WARN", "git core.longpaths enabled for this repository")
+    r.line("OK" if shutil.which("uv") else "FAIL", f"uv: {shutil.which('uv') or 'not found'} (this script and the MCP server launcher)")
+    r.line("OK" if shutil.which("ffmpeg") else "WARN",
+           f"ffmpeg: {shutil.which('ffmpeg') or 'not found'} (optional: encoding a rendered frame sequence to video)")
+    if os.name == "nt":  # Windows refuses paths over 260 characters unless long paths are enabled system-wide
+        deepest = max((len(name) for name in library_files()), default=0) + len(LIB.name) + 1
+        n = len(str(ROOT.resolve()))
+        r.line("WARN" if n + 1 + deepest >= 260 else "OK",
+               f"harness path length: {n} characters (the deepest library file adds {deepest}; keep the total under 260)")
     provider = reg.mcp["providers"][reg.active_mcp() or reg.mcp["default_provider"]]
     need = provider["blender_min"]
     versions = {exe: blender_version(exe) for exe in find_blender()}
@@ -908,8 +829,9 @@ def cmd_doctor(reg: Registry, args) -> int:
             installed = (blender_config_dir(v, exe) / "extensions" / "user_default" / ext_id).is_dir()
             r.line("OK" if installed else "WARN", f"Blender {v[0]}.{v[1]} extension '{ext_id}': " +
                    ("installed" if installed else "NOT installed, so Blender shows no MCP sidebar tab - run: uv run scripts/harness.py install-extension"))
-    missing = missing_upstreams(reg)
-    r.line("FAIL" if missing else "OK", f"submodules checked out: {'missing ' + ', '.join(missing) if missing else 'all'}")
+    missing = missing_libraries(reg)
+    r.line("FAIL" if missing else "OK", "skill library: " + (f"missing {', '.join(missing)} - restore it from git, or reinstall the plugin"
+                                                           if missing else f"{len(reg.libraries)} libraries, {len(library_files())} files"))
     active = reg.active_mcp()
     r.line("OK" if active else "WARN", f".mcp.json provider: {active or 'none recognised - run harness.py mcp-config --write'}")
     try:  # a second Blender server at user scope would compete for the same Blender instance
@@ -933,15 +855,14 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="claude-3d-harness registry engine")
     ap.add_argument("--version", action="version", version=f"claude-3d-harness {harness_version()}")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    p = sub.add_parser("setup", help="the whole install: bootstrap, mcp-config, install-extension, doctor, verify")
+    p = sub.add_parser("setup", help="the whole install: mcp-config, install-extension, doctor, verify")
     p.add_argument("--provider", help="MCP provider to configure (default: keep the current one)")
     p.add_argument("--blender", help="path to the blender executable")
     p.add_argument("--skip-blender-extension", action="store_true", help="leave Blender alone")
-    sub.add_parser("doctor", help="check tools, path depth, Blender, submodules, MCP config")
-    sub.add_parser("bootstrap", help="init git if needed and check out every upstream at its pinned commit")
-    p = sub.add_parser("verify", help="validate the registry against the upstream trees")
+    sub.add_parser("doctor", help="check tools, Blender and its extension, the skill library, MCP config")
+    p = sub.add_parser("verify", help="validate the registry against the skill library, and the library against its checksums")
     p.add_argument("--strict", action="store_true", help="treat warnings as failures (CI)")
-    p = sub.add_parser("outdated", help="read-only check: are the pins behind what upstream publishes now?")
+    p = sub.add_parser("outdated", help="read-only check: is the pinned MCP server behind its latest release?")
     p.add_argument("--markdown", action="store_true", help="print the report as Markdown (for an issue body)")
     p = sub.add_parser("resolve", help="print the load plan for a job")
     p.add_argument("-w", "--workflow")
@@ -951,22 +872,18 @@ def main() -> int:
     p.add_argument("--variant", action="append", default=[], metavar="CAP=VARIANT")
     p.add_argument("--json", action="store_true")
     p = sub.add_parser("list", help="print a registry table")
-    p.add_argument("what", choices=["upstreams", "skills", "capabilities", "workflows", "profiles"])
+    p.add_argument("what", choices=["libraries", "skills", "capabilities", "workflows", "profiles"])
     p = sub.add_parser("where", help="find a skill by bare name")
     p.add_argument("name")
     p = sub.add_parser("mcp-config", help="render .mcp.json from registry/mcp.yaml")
     p.add_argument("--provider")
     p.add_argument("--write", action="store_true")
-    p = sub.add_parser("audit", help="flag risky patterns in upstream skill files for human review")
-    p.add_argument("keys", nargs="*")
-    p.add_argument("--since-cataloged", action="store_true")
-    p.add_argument("-v", "--verbose", action="store_true")
-    p = sub.add_parser("catalog-bump", help="record the checked-out commit as reviewed")
-    p.add_argument("keys", nargs="*")
-    p.add_argument("--all", action="store_true")
-    p = sub.add_parser("update", help="move upstreams to their branch tips, then verify and audit what changed")
-    p.add_argument("keys", nargs="*")
-    p.add_argument("--rollback", action="store_true", help="return to the commits pinned in the index")
+    p = sub.add_parser("audit", help="flag risky patterns in the skill library for human review")
+    p.add_argument("keys", nargs="*", help="library keys (default: all)")
+    p.add_argument("--changed", action="store_true", help="only the files that differ from library/SHA256SUMS")
+    p.add_argument("-v", "--verbose", action="store_true", help="print every flagged line, not the first two per file")
+    p = sub.add_parser("checksums", help="compare the skill library with library/SHA256SUMS (exit 1 when it differs)")
+    p.add_argument("--write", action="store_true", help="record the library as it is now, after reviewing the changes")
     p = sub.add_parser("install-extension", help="download, checksum and install the Blender-side extension of the active MCP provider")
     p.add_argument("--blender", help="path to the blender executable")
     args = ap.parse_args()

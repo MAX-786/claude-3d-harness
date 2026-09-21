@@ -1,9 +1,10 @@
-name: upstream-watch
+name: mcp-watch
 
-# Once a week, compare the pins in registry/ with what the upstreams publish now
-# and keep one issue up to date. It never moves a pin: upstream skills are
-# instructions Claude follows with code-execution rights inside Blender, so
-# every move is reviewed by a person (README, "Pinning and updates").
+# Once a week, compare the pinned MCP server release in registry/mcp.yaml with
+# the latest one and keep one issue up to date. It never moves the pin: the
+# server and its Blender extension run code on the user's machine, so every
+# move is reviewed by a person (README, "Pinning and updates"). The skill
+# library is not watched: it lives in this repository.
 
 on:
   schedule:
@@ -21,7 +22,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0; this action publishes no moving major tag
 
-      - name: Compare the pins with upstream
+      - name: Compare the MCP server pins with the latest release
         id: check
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -34,7 +35,7 @@ jobs:
       - name: Open, update or close the tracking issue
         env:
           GH_TOKEN: ${{ github.token }}
-          TITLE: "Upstream watch: pins are behind"
+          TITLE: "MCP watch: the pinned server is behind"
           CODE: ${{ steps.check.outputs.code }}
         run: |
           number=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number --jq '.[0].number // empty')
@@ -49,11 +50,11 @@ jobs:
               ;;
             0)
               if [ -n "$number" ]; then
-                gh issue close "$number" --comment "Every pin matches upstream again."
+                gh issue close "$number" --comment "The pinned server matches the latest release again."
               fi
               ;;
             *)
-              echo "::error::harness.py outdated could not check the upstreams (exit $CODE)"
+              echo "::error::harness.py outdated could not check the MCP server releases (exit $CODE)"
               exit 1
               ;;
           esac

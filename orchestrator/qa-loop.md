@@ -1,7 +1,7 @@
 # Render, inspect, refine
 
 The harness owns *when* to check, *how much* to spend and *when to stop*. What
-to look for in an image belongs to the upstream skills: the visual validation
+to look for in an image belongs to the library skills: the visual validation
 checkpoint in the execution-core skill, the critique protocol in
 pipeline-planning, and the contact-sheet review in animation-qa.
 

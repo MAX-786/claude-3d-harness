@@ -1,10 +1,10 @@
 # Lessons
 
-`upstream/` is read-only, so lessons that an upstream skill would write back
-into its own files land here instead. One entry per lesson: date, the job, what
-went wrong, what fixed it, and which skill (`<key>/<name>`) it concerns. Entries
-that keep recurring are worth an issue or pull request on the upstream
-repository, or a routing change in `registry/capabilities.yaml`.
+`library/` is never edited during a job, so lessons that a skill would write
+back into its own files land here instead. One entry per lesson: date, the job,
+what went wrong, what fixed it, and which skill (`<key>/<name>`) it concerns.
+Entries that keep recurring are worth a reviewed fix to the skill in `library/`
+(see CONTRIBUTING.md), or a routing change in `registry/capabilities.yaml`.
 
 `harness.py resolve` reads this file: every load plan ends with the entries that
 concern its skills, by line number. For that, an entry is one top-level bullet
