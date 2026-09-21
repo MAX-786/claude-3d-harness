@@ -17,9 +17,9 @@ Trigger this skill when:
 
 ## Prerequisites
 
-- **Meshy API Key**: Retrieved from memory (reference_meshy_api.md)
+- **Meshy API Key**: Already set in the environment variable `MESHY_API_KEY`. Never ask for it in chat, never put it on a command line or in a file, and never look for it in memory or notes
 - **Blender MCP**: Must be connected (blender-mcp addon running on port 9876)
-- **Images**: 1-4 local file paths (.jpg, .jpeg, .png) or publicly accessible URLs
+- **Images**: 1-4 local file paths (.jpg, .jpeg, .png) or publicly accessible URLs. They are uploaded to meshy.ai, a paid third-party service: say so before starting
 - **Same object**: All images must depict the same object from different angles
 
 ## Flow
@@ -55,7 +55,7 @@ payload = {
     "target_formats": ["glb"]
 }
 
-with open("output/request.json", "w") as f:
+with open("<JOB_DIR>/request.json", "w") as f:
     json.dump(payload, f)
 ```
 
@@ -66,7 +66,7 @@ curl -s https://api.meshy.ai/openapi/v1/multi-image-to-3d \
   -X POST \
   -H "Authorization: Bearer ${MESHY_API_KEY}" \
   -H 'Content-Type: application/json' \
-  -d @output/request.json
+  -d @<JOB_DIR>/request.json
 ```
 
 Response: `{"result": "<task_id>"}`
@@ -87,7 +87,7 @@ Poll every 15 seconds. Check `status`:
 ### Step 4: Download the GLB
 
 ```bash
-curl -L -o "output/<filename>.glb" "<model_urls.glb>"
+curl -L -o "<JOB_DIR>/<filename>.glb" "<model_urls.glb>"
 ```
 
 ### Step 5: Import into Blender
@@ -97,11 +97,7 @@ Use the Blender MCP `execute_blender_code` tool:
 ```python
 import bpy
 
-# Clear scene (optional)
-for obj in bpy.data.objects:
-    bpy.data.objects.remove(obj, do_unlink=True)
-
-# Import GLB
+# Import GLB (into the scene as it is: nothing is cleared)
 bpy.ops.import_scene.gltf(filepath="<path_to_glb>")
 
 # Frame imported object

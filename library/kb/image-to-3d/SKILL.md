@@ -16,9 +16,9 @@ Trigger this skill when:
 
 ## Prerequisites
 
-- **Meshy API Key**: Stored in environment variable `MESHY_API_KEY` or passed directly
+- **Meshy API Key**: Already set in the environment variable `MESHY_API_KEY`. Never ask for it in chat, never put it on a command line or in a file
 - **Blender MCP**: Must be connected (blender-mcp addon running on port 9876)
-- **Image**: Local file path (.jpg, .jpeg, .png) or publicly accessible URL
+- **Image**: Local file path (.jpg, .jpeg, .png) or publicly accessible URL. The image is uploaded to meshy.ai, a paid third-party service: say so before starting
 
 ## Flow
 
@@ -68,7 +68,7 @@ Poll every 10 seconds. Check `status` field:
 ### Step 4: Download the GLB
 
 ```bash
-curl -L -o "/Users/kevinbahrabadi/Blender Test/output/<filename>.glb" "<model_urls.glb>"
+curl -L -o "<JOB_DIR>/<filename>.glb" "<model_urls.glb>"
 ```
 
 ### Step 5: Import into Blender
@@ -78,12 +78,8 @@ Use the Blender MCP `execute_blender_code` tool:
 ```python
 import bpy
 
-# Clear scene (optional, based on user preference)
-bpy.ops.object.select_all(action='SELECT')
-bpy.ops.object.delete()
-
-# Import GLB
-bpy.ops.import_scene.gltf(filepath="/Users/kevinbahrabadi/Blender Test/output/<filename>.glb")
+# Import GLB (into the scene as it is: nothing is cleared)
+bpy.ops.import_scene.gltf(filepath="<JOB_DIR>/<filename>.glb")
 
 # Center and frame the imported object
 bpy.ops.object.select_all(action='SELECT')
